@@ -9,8 +9,20 @@ go mod tidy
 Push-Location blocks\webchain; go mod tidy; Pop-Location
 Push-Location blocks\learnchain; go mod tidy; Pop-Location
 
-Write-Host "[2/5] Building CoreChain.exe..." -ForegroundColor Yellow
-go build -ldflags="-s -w" -o CoreChain.exe ./cmd/corechain
+Write-Host "[2/5] Building CoreChain binaries (win-arm, win-x64, native)..." -ForegroundColor Yellow
+$env:CGO_ENABLED = "0"
+$env:GOOS = "windows"
+$env:GOARCH = "arm64"
+go build -ldflags="-H=windowsgui -s -w" -o CoreChain-win-arm.exe ./cmd/corechain
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+$env:GOARCH = "amd64"
+go build -ldflags="-H=windowsgui -s -w" -o CoreChain-win-x64.exe ./cmd/corechain
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+Remove-Item Env:GOARCH -ErrorAction SilentlyContinue
+Remove-Item Env:GOOS -ErrorAction SilentlyContinue
+Copy-Item -Force "CoreChain-win-arm.exe" "CoreChain.exe"
 
 Write-Host "[3/5] Building & packing webchain.Blz..." -ForegroundColor Yellow
 $webStage = "_build_tmp\webchain"

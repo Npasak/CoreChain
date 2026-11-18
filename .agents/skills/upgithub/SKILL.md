@@ -2,24 +2,23 @@
 name: upgithub
 description: >-
   Multi-repository GitHub sync workflow for CoreChain, LearnChain (..\DApps), and WebChain (..\WebChain).
-  Activate whenever the user says "upgithub" to commit and push all related repositories modified in the current round.
+  Activate whenever the user says "upgithub" to bump versions, build 2-architecture Windows binaries (ARM64 + x64) for all 3 apps, and commit/push all related repositories.
 ---
 
-# `upgithub` — Multi-Repository GitHub Sync Workflow
+# `upgithub` — Multi-Repository Build & GitHub Sync Workflow
 
 When the user says **`upgithub`**, follow these steps:
 
-1. **Identify Modified Repositories:**
-   - Check git status in:
-     - `CoreChain` (`.`) -> `https://github.com/Npasak/CoreChain.git` (`main`)
-     - `LearnChain` (`..\DApps`) -> `https://github.com/Npasak/Learnchain.git` (`main`)
-     - `WebChain` (`..\WebChain`) -> `https://github.com/Npasak/webchain.git` (`main`)
-2. **Sync Shared Block Fixes (if applicable):**
-   - If changes were made in `CoreChain/blocks/learnchain` (such as sync, cover, or handler bug fixes) that also apply to standalone `LearnChain.exe`, check whether `..\DApps` should receive the corresponding update before pushing.
-   - Same for `CoreChain/blocks/webchain` and `..\WebChain`.
-3. **Verify Before Push:**
-   - Ensure `build.ps1` and relevant `go test` checks pass if Go code was modified.
+1. **Bump Versions (if code changed in this round):**
+   - `CoreChain`: bump `Version` in `internal/config/config.go`
+   - `LearnChain` (`..\DApps`): bump version tag / `version/version.go`
+   - `WebChain` (`..\WebChain`): bump version in `version/version.go`
+2. **Build 2 Architectures (`arm64` + `x64`) for Each Program:**
+   - **CoreChain:** Run `powershell -ExecutionPolicy Bypass -File .\build.ps1` to produce `CoreChain-win-arm.exe`, `CoreChain-win-x64.exe`, `CoreChain.exe`, and `packages/*.Blz`.
+   - **LearnChain (`..\DApps`):** Build both `LearnChain-arm64.exe` and `LearnChain-x64.exe` (via `.\build.ps1` or `GOOS=windows GOARCH=arm64|amd64`).
+   - **WebChain (`..\WebChain`):** Build both `WebChain-windows-arm64.exe` and `WebChain-windows-amd64.exe` (via `.\build.ps1` or `GOOS=windows GOARCH=arm64|amd64`).
+3. **Verify & Clean:**
    - Ensure `.gitignore` excludes binaries (`*.exe`, `*.Blz`), databases (`*.db`), and `Pic/` media.
 4. **Commit & Push All Affected Repos:**
-   - Run `powershell -ExecutionPolicy Bypass -File .\upgithub.ps1 -Message "<concise summary of changes>"` (or commit and push each modified repo individually with descriptive commit messages).
-   - Report the exact commit hash and push result for each repository.
+   - Commit & push `CoreChain` (`https://github.com/Npasak/CoreChain.git`), `LearnChain` (`https://github.com/Npasak/Learnchain.git`), and `WebChain` (`https://github.com/Npasak/webchain.git`) on `main`.
+   - Report the build outputs, version numbers, and git push results.
