@@ -239,7 +239,15 @@ func main() {
 		return c.JSON(fiber.Map{"ok": true, "message": "Background update check started"})
 	})
 
-	// Unified God Vault
+	// Unified God Vault & Clean-Install Sync
+	api.Post("/god/bootstrap-sync", authSvc.RequireAdmin(), func(c *fiber.Ctx) error {
+		var body struct {
+			PeerURL string `json:"peer_url"`
+		}
+		_ = c.BodyParser(&body)
+		go bgUpdater.BootstrapSync(body.PeerURL)
+		return c.JSON(fiber.Map{"ok": true, "message": "เริ่ม Sync เครื่องใหม่แล้ว"})
+	})
 	god := api.Group("/god", authSvc.RequireGod())
 	god.Get("/status", godVault.Status)
 	god.Post("/backup", godVault.CreateBackup)

@@ -55,5 +55,43 @@ go run ./cmd/blzpack $docStage "packages\docchain.Blz"
 
 Remove-Item -Recurse -Force "_build_tmp"
 
-Write-Host "`nBuild Complete!" -ForegroundColor Green
+# Generate root manifest.json for Background Auto-Updater
+$coreVer = (Select-String -Path "internal\config\config.go" -Pattern 'const Version = "([^"]+)"').Matches[0].Groups[1].Value
+$webSha = (Get-FileHash "packages\webchain.Blz" -Algorithm SHA256).Hash.ToLower()
+$learnSha = (Get-FileHash "packages\learnchain.Blz" -Algorithm SHA256).Hash.ToLower()
+$docSha = (Get-FileHash "packages\docchain.Blz" -Algorithm SHA256).Hash.ToLower()
+$armSha = (Get-FileHash "CoreChain-win-arm.exe" -Algorithm SHA256).Hash.ToLower()
+$x64Sha = (Get-FileHash "CoreChain-win-x64.exe" -Algorithm SHA256).Hash.ToLower()
+
+$manifestObj = @{
+    core_version = $coreVer
+    core_arm_url = "https://github.com/Npasak/CoreChain/raw/main/CoreChain-win-arm.exe"
+    core_arm_sha256 = $armSha
+    core_x64_url = "https://github.com/Npasak/CoreChain/raw/main/CoreChain-win-x64.exe"
+    core_x64_sha256 = $x64Sha
+    published_at = $BuildDate
+    blocks = @(
+        @{
+            id = "webchain"
+            version = "1.0.0"
+            download_url = "https://github.com/Npasak/CoreChain/raw/main/packages/webchain.Blz"
+            sha256 = $webSha
+        },
+        @{
+            id = "learnchain"
+            version = "1.3.22"
+            download_url = "https://github.com/Npasak/CoreChain/raw/main/packages/learnchain.Blz"
+            sha256 = $learnSha
+        },
+        @{
+            id = "docchain"
+            version = "1.0.0"
+            download_url = "https://github.com/Npasak/CoreChain/raw/main/packages/docchain.Blz"
+            sha256 = $docSha
+        }
+    )
+}
+$manifestObj | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 "manifest.json"
+
+Write-Host "`nBuild Complete! (CoreChain v$coreVer)" -ForegroundColor Green
 Get-ChildItem packages\*.Blz | Select-Object Name, Length

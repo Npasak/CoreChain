@@ -36,10 +36,14 @@ async function loadMe() {
 function renderAuth() {
   const area = document.getElementById('authArea');
   const btnInstall = document.getElementById('btnShowInstall');
+  const btnCheck = document.getElementById('btnCheckUpdate');
+  const btnBoot = document.getElementById('btnBootstrapSync');
   const btnPeer = document.getElementById('btnAddPeer');
   const isAdmin = currentUser && (currentUser.global_role === 'admin' || currentUser.global_role === 'god');
 
   btnInstall.classList.toggle('hidden', !isAdmin);
+  if (btnCheck) btnCheck.classList.toggle('hidden', !isAdmin);
+  if (btnBoot) btnBoot.classList.toggle('hidden', !isAdmin);
   btnPeer.classList.toggle('hidden', !isAdmin);
 
   if (!currentUser) {
@@ -127,12 +131,54 @@ async function loadSync() {
   } catch {}
 }
 
+let updaterPollTimer = null;
+
 async function loadUpdater() {
   try {
     const res = await fetch('/api/updater/status');
     const data = await res.json();
-    document.getElementById('updaterBadge').textContent = `Updater: ${data.status || 'idle'}`;
+    const ver = data.current_version ? `v${data.current_version}` : '';
+    const pctText = data.is_updating ? ` (${data.progress_pct || 0}%)` : '';
+    document.getElementById('updaterBadge').textContent = `CoreChain ${ver} • ${data.status || 'idle'}${pctText}`;
+
+    const banner = document.getElementById('progressBanner');
+    if (banner) {
+      if (data.is_updating) {
+        banner.classList.remove('hidden');
+        document.getElementById('progressTitle').textContent = `⏳ กำลังดำเนินการ: ${data.target_item || 'CoreChain'}`;
+        document.getElementById('progressPct').textContent = `${data.progress_pct || 0}%`;
+        document.getElementById('progressFill').style.width = `${data.progress_pct || 0}%`;
+        document.getElementById('progressStep').textContent = data.current_step || data.status || '';
+        if (!updaterPollTimer) {
+          updaterPollTimer = setInterval(loadUpdater, 500);
+        }
+      } else {
+        if (updaterPollTimer) {
+          clearInterval(updaterPollTimer);
+          updaterPollTimer = null;
+          setTimeout(() => { banner.classList.add('hidden'); loadBlocks(); }, 1800);
+        } else {
+          banner.classList.add('hidden');
+        }
+      }
+    }
   } catch {}
+}
+
+async function triggerUpdateCheck() {
+  await fetch('/api/updater/check', { method: 'POST' });
+  setTimeout(loadUpdater, 300);
+}
+
+async function triggerBootstrapSync() {
+  const peer = prompt('ใส่ LAN URL เครื่องหลัก (หรือเว้นว่างเพื่อดึงจาก Google Drive / Auto):', '');
+  if (peer === null) return;
+  await fetch('/api/god/bootstrap-sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ peer_url: peer.trim() })
+  });
+  setTimeout(loadUpdater, 300);
 }
 
 async function loadEvents() {

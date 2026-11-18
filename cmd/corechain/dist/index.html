@@ -52,10 +52,23 @@
       </div>
     </section>
 
+    <section id="progressBanner" class="panel-card hidden" style="margin-bottom:18px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <strong id="progressTitle">⏳ กำลังอัปเดต / Sync ระบบ...</strong>
+        <span id="progressPct" class="badge">0%</span>
+      </div>
+      <div class="progress-track">
+        <div id="progressFill" class="progress-fill" style="width:0%;"></div>
+      </div>
+      <div id="progressStep" class="hint-text" style="margin-top:6px;">กำลังเตรียมการ...</div>
+    </section>
+
     <section class="section-header">
       <h2>📦 Application Blocks</h2>
       <div class="section-actions">
         <button class="btn btn-secondary" onclick="refreshAll()">🔄 รีเฟรชสถานะ</button>
+        <button id="btnCheckUpdate" class="btn btn-secondary hidden" onclick="triggerUpdateCheck()">⬇ เช็กอัปเดต</button>
+        <button id="btnBootstrapSync" class="btn btn-secondary hidden" onclick="triggerBootstrapSync()">🚀 Sync เครื่องใหม่</button>
         <button id="btnShowInstall" class="btn btn-primary hidden" onclick="toggleInstallModal(true)">➕ ติดตั้ง / อัปเดต .Blz</button>
       </div>
     </section>
