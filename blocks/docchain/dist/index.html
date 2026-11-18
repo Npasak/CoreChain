@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DocChain — แหล่งรวมเอกสารหน่วยงาน</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <nav class="core-switcher">
+    <a href="/" class="sw-brand">⛓️ CoreChain</a>
+    <div class="sw-links">
+      <a href="/b/webchain/">🏥 WebChain</a>
+      <a href="/b/learnchain/">🎓 LearnChain</a>
+      <a href="/b/docchain/" class="active">📄 DocChain</a>
+    </div>
+    <div id="userBadge" class="sw-user">Guest</div>
+  </nav>
+
+  <main class="container">
+    <header class="page-head">
+      <div>
+        <h1>📄 DocChain — แหล่งรวมเอกสารหน่วยงาน</h1>
+        <p>คลังเอกสาร SOP, คู่มือ, แบบฟอร์ม และระเบียบปฏิบัติ พร้อมระบบตรวจสอบ SHA-256</p>
+      </div>
+      <button id="btnUpload" class="btn btn-primary hidden" onclick="toggleModal(true)">➕ อัปโหลดเอกสาร</button>
+    </header>
+
+    <section class="filters">
+      <input type="text" id="searchInput" placeholder="🔍 ค้นหาชื่อเอกสาร, รหัส, แท็ก..." oninput="loadDocs()" />
+      <select id="catFilter" onchange="loadDocs()">
+        <option value="all">ทุกหมวดหมู่</option>
+        <option value="SOP">SOP</option>
+        <option value="คู่มือ">คู่มือ</option>
+        <option value="แบบฟอร์ม">แบบฟอร์ม</option>
+        <option value="ระเบียบ">ระเบียบ</option>
+      </select>
+    </section>
+
+    <section id="docsGrid" class="docs-grid"></section>
+  </main>
+
+  <div id="uploadModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>📤 อัปโหลดเอกสารใหม่</h3>
+        <button class="icon-btn" onclick="toggleModal(false)">✕</button>
+      </div>
+      <form onsubmit="submitDoc(event)">
+        <input type="text" id="docCode" placeholder="รหัสเอกสาร (เช่น SOP-NS-002)" />
+        <input type="text" id="docTitle" required placeholder="ชื่อเอกสาร *" />
+        <div class="row">
+          <select id="docCategory">
+            <option value="SOP">SOP</option>
+            <option value="คู่มือ">คู่มือ</option>
+            <option value="แบบฟอร์ม">แบบฟอร์ม</option>
+            <option value="ระเบียบ">ระเบียบ</option>
+          </select>
+          <input type="text" id="docVersion" value="1.0" placeholder="เวอร์ชัน" />
+        </div>
+        <input type="text" id="docWard" value="all" placeholder="หอผู้ป่วย (เช่น all, สว11, 8A)" />
+        <input type="text" id="docTags" placeholder="แท็ก (คั่นด้วยจุลภาค)" />
+        <textarea id="docDesc" rows="2" placeholder="คำอธิบายสั้นๆ"></textarea>
+        <label>ไฟล์เอกสาร (PDF / Word / อื่นๆ)</label>
+        <input type="file" id="docFile" />
+        <label>ภาพปก (เก็บที่ Pic/docchain/)</label>
+        <input type="file" id="docCover" accept="image/*" />
+        <button type="submit" class="btn btn-primary">บันทึกและเผยแพร่</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

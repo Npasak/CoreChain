@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CoreChain — Decentralized Block Launcher</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body class="theme-sky">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-logo">⛓️</div>
+      <div>
+        <div class="brand-title">CoreChain</div>
+        <div class="brand-sub">Decentralized Block Launcher • Single Server • .Blz Runtime</div>
+      </div>
+    </div>
+
+    <div class="topbar-actions">
+      <div id="nodeBadge" class="pill pill-info">Node: loading...</div>
+      <div id="updaterBadge" class="pill pill-muted">Updater: idle</div>
+      <select id="themeSelect" class="theme-select" title="เปลี่ยนธีม">
+        <option value="theme-sky">☀️ Sky</option>
+        <option value="theme-pink">🌸 Pink</option>
+        <option value="theme-lavender">💜 Lavender</option>
+        <option value="theme-mint">🌿 Mint</option>
+        <option value="theme-dark">🌙 Dark</option>
+      </select>
+      <div id="authArea"></div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero-card">
+      <div>
+        <h1>ศูนย์รวมแอปพลิเคชันแบบกระจายศูนย์ (Decentralized Blocks)</h1>
+        <p>รันทุก Block บน Server เดียวกันในพื้นหลัง อัปเดตไฟล์ <code>.Blz</code> แบบ Hot-Swap ได้ทันทีโดยไม่ต้องปิด CoreChain และแยกฐานข้อมูล + CPU ต่อ Block อิสระ</p>
+      </div>
+      <div class="hero-stats">
+        <div class="stat-box">
+          <div class="stat-val" id="statBlocks">0</div>
+          <div class="stat-lbl">Active Blocks</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="statPeers">1</div>
+          <div class="stat-lbl">LAN Peers</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="statCPUs">-</div>
+          <div class="stat-lbl">Host CPUs</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-header">
+      <h2>📦 Application Blocks</h2>
+      <div class="section-actions">
+        <button class="btn btn-secondary" onclick="refreshAll()">🔄 รีเฟรชสถานะ</button>
+        <button id="btnShowInstall" class="btn btn-primary hidden" onclick="toggleInstallModal(true)">➕ ติดตั้ง / อัปเดต .Blz</button>
+      </div>
+    </section>
+
+    <section id="blocksGrid" class="blocks-grid">
+      <div class="loading-card">กำลังโหลด Blocks...</div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel-card">
+        <div class="panel-header">
+          <h3>🔌 Connector Bus (Events)</h3>
+          <span class="badge">Real-time Pub/Sub</span>
+        </div>
+        <div id="eventsList" class="events-list">
+          <div class="empty-note">ยังไม่มี Event ล่าสุด</div>
+        </div>
+      </section>
+
+      <section class="panel-card">
+        <div class="panel-header">
+          <h3>🌐 Decentralized LAN Mesh</h3>
+          <button id="btnAddPeer" class="btn btn-sm btn-secondary hidden" onclick="promptAddPeer()">+ เพิ่ม Peer</button>
+        </div>
+        <div id="peersList" class="peers-list">
+          <div class="empty-note">กำลังตรวจสอบเครือข่าย...</div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Unified Login Modal -->
+  <div id="loginModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>🔐 เข้าสู่ระบบ Unified Auth</h3>
+        <button class="icon-btn" onclick="toggleLoginModal(false)">✕</button>
+      </div>
+      <form id="loginForm" onsubmit="submitLogin(event)">
+        <label>ชื่อผู้ใช้หรืออีเมล</label>
+        <input type="text" id="loginUsername" required placeholder="เช่น admin หรือ email" />
+        <label>รหัสผ่าน</label>
+        <input type="password" id="loginPassword" required placeholder="••••••" />
+        <div id="loginErr" class="error-msg hidden"></div>
+        <button type="submit" class="btn btn-primary full-width">เข้าสู่ระบบ (ใช้ได้ทุก Block)</button>
+      </form>
+      <p class="hint-text">บัญชีเดิมจาก WebChain และ LearnChain สามารถใช้ล็อกอินได้ทันที</p>
+    </div>
+  </div>
+
+  <!-- .Blz Hot-Swap Install Modal -->
+  <div id="installModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>⚡ ติดตั้ง / อัปเดต Block (.Blz Hot-Swap)</h3>
+        <button class="icon-btn" onclick="toggleInstallModal(false)">✕</button>
+      </div>
+      <form id="installForm" onsubmit="submitBlzUpload(event)">
+        <label>เลือกไฟล์แพ็กเกจ <code>.Blz</code></label>
+        <input type="file" id="blzFileInput" accept=".Blz,.blz" required />
+        <p class="hint-text">ระบบจะ Backup ฐานข้อมูลของ Block นั้นอัตโนมัติ แล้วสลับเวอร์ชันทันทีโดยไม่ Restart CoreChain</p>
+        <div id="installStatus" class="hint-text"></div>
+        <button type="submit" class="btn btn-primary full-width">อัปโหลดและ Hot-Swap ทันที</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

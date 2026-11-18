@@ -1,0 +1,18 @@
+{
+  "id": "docchain",
+  "name": "DocChain",
+  "description": "แหล่งรวมเอกสารหน่วยงาน (SOP, คู่มือ, แบบฟอร์ม, ระเบียบ) พร้อมระบบ SHA-256 Hash และ Sync แบบ Decentralized",
+  "version": "1.0.0",
+  "icon": "📄",
+  "color": "#0ea5e9",
+  "entrypoint": "block.exe",
+  "cpu_threads": 2,
+  "default_enabled": true,
+  "order": 3,
+  "capabilities": ["documents", "sha256-verify", "versioning", "lan-sync"],
+  "connectors": [
+    { "action": "latest", "description": "ดึงรายการเอกสารล่าสุด" },
+    { "action": "search", "description": "ค้นหาเอกสารด้วยคำสำคัญ" }
+  ],
+  "subscribed_topics": ["webchain.announcement"]
+}

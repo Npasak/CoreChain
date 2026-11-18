@@ -1,0 +1,17 @@
+{
+  "id": "learnchain",
+  "name": "LearnChain",
+  "description": "ระบบ E-Learning และใบประกาศนียบัตรแบบ Decentralized (Soulbound Token) พร้อมคลังบทเรียนและข้อสอบ",
+  "version": "1.3.22",
+  "icon": "🎓",
+  "color": "#0284c7",
+  "entrypoint": "block.exe",
+  "cpu_threads": 4,
+  "default_enabled": true,
+  "order": 2,
+  "capabilities": ["e-learning", "sbt-certificates", "quizzes", "lan-sync"],
+  "connectors": [
+    { "action": "courses", "description": "ดึงรายการคอร์สเรียนทั้งหมด" }
+  ],
+  "subscribed_topics": ["doc.published"]
+}

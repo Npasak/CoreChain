@@ -1,0 +1,17 @@
+{
+  "id": "webchain",
+  "name": "WebChain",
+  "description": "เว็บไซต์หน่วยงานและศูนย์สื่อสารภายในหอผู้ป่วย (Special 2 & Special 3) พร้อมระบบข่าวสาร วันเกิด และ Mesh Sync",
+  "version": "1.0.0",
+  "icon": "🏥",
+  "color": "#1d4ed8",
+  "entrypoint": "block.exe",
+  "cpu_threads": 2,
+  "default_enabled": true,
+  "order": 1,
+  "capabilities": ["intranet", "wards", "birthdays", "lan-sync"],
+  "connectors": [
+    { "action": "latest_posts", "description": "ดึงข่าวสาร/ประกาศล่าสุดของหน่วยงาน" }
+  ],
+  "subscribed_topics": ["doc.published"]
+}

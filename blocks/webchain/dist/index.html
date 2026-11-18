@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebChain — ศูนย์สื่อสารภายในหน่วยงาน</title>
+  <base href="/b/webchain/" />
+  <script>
+    (function(){
+      var origFetch = window.fetch;
+      window.fetch = function(input, init) {
+        if (typeof input === 'string' && input.startsWith('/api/')) {
+          input = '/b/webchain' + input;
+        }
+        return origFetch.call(this, input, init);
+      };
+    })();
+  </script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <nav style="background:#0f172a;color:#fff;padding:8px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px;">
+    <a href="/" style="color:#38bdf8;font-weight:800;text-decoration:none;">⛓️ CoreChain</a>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a href="/b/webchain/" style="background:#1e293b;color:#fff;text-decoration:none;padding:4px 12px;border-radius:999px;">🏥 WebChain</a>
+      <a href="/b/learnchain/" style="color:#cbd5e1;text-decoration:none;padding:4px 12px;border-radius:999px;">🎓 LearnChain</a>
+      <a href="/b/docchain/" style="color:#cbd5e1;text-decoration:none;padding:4px 12px;border-radius:999px;">📄 DocChain</a>
+    </div>
+  </nav>
+  <!-- Root Portal Selector (shown only on /) -->
+  <div id="portalSelector" class="portal-selector hidden">
+    <div class="portal-box">
+      <div class="portal-brand">🏥 WebChain</div>
+      <p class="portal-desc">กรุณาเลือกหน้าเว็บประจำหน่วยงานของคุณ (แยกอิสระจากกัน)</p>
+      <div class="portal-cards">
+        <a href="/b/webchain/special-2" class="portal-card">
+          <div class="portal-card-icon">🩺</div>
+          <h2>งานการพยาบาลผู้ป่วยพิเศษ 2</h2>
+          <p>หอสงฆ์ • สว11 • สว12</p>
+        </a>
+        <a href="/b/webchain/special-3" class="portal-card">
+          <div class="portal-card-icon">🏥</div>
+          <h2>งานการพยาบาลผู้ป่วยพิเศษ 3</h2>
+          <p>8A • 8B • 9A • 9B • 9C</p>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Department Single-Page App -->
+  <div id="deptApp" class="hidden">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand-group">
+          <div class="brand-logo">
+            <span class="logo-icon">🏥</span>
+            <div>
+              <div class="logo-title" id="deptTitleMain">WebChain</div>
+              <div class="logo-sub" id="deptTitleSub"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <div class="ext-links" id="externalLinksBar"></div>
+          <button class="btn btn-ghost btn-pill" onclick="openColorModal()" title="เลือกสีธีม">🎨 สีธีม</button>
+          <button class="btn btn-ghost btn-pill" onclick="openQRModal()" title="สแกนเปิดบนมือถือ">📱 QR มือถือ</button>
+          <button class="btn btn-ghost btn-pill" onclick="openStatsModal()" title="สถิติการโพสต์">📊 สถิติ</button>
+          <button class="btn btn-ghost btn-pill" onclick="openSyncModal()" id="syncBadgeBtn" title="Master-Peer Sync">
+            <span class="dot dot-ok"></span> Sync
+          </button>
+          <div id="authArea"></div>
+        </div>
+      </div>
+
+      <div class="unified-nav-wrap">
+        <div class="nav-groups">
+          <div class="nav-group" id="wardBar"></div>
+          <div class="nav-divider" aria-hidden="true"></div>
+          <div class="nav-group" id="newsBar">
+            <span class="ward-label">ข่าวสารและกิจกรรม:</span>
+            <div class="cat-tabs" id="catTabs">
+              <button class="ward-chip" data-cat="all" onclick="setCategory('all')">ทั้งหมด</button>
+              <button class="ward-chip" data-cat="meeting" onclick="setCategory('meeting')">📅 ประชุม / อบรม</button>
+              <button class="ward-chip" data-cat="activity" onclick="setCategory('activity')">📸 กิจกรรม</button>
+              <button class="ward-chip" data-cat="announcement" onclick="setCategory('announcement')">📢 ประกาศ</button>
+              <button class="ward-chip" data-cat="award" onclick="setCategory('award')">🏆 ยินดีรางวัล</button>
+            </div>
+          </div>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn btn-ghost btn-sm hidden" id="btnToggleOld" onclick="toggleOldPosts()"></button>
+          <input type="search" id="searchInput" class="search-input" placeholder="🔍 ค้นหา..." oninput="handleSearchInput()" />
+          <button class="btn btn-primary hidden" id="btnNewPost" onclick="openPostModal()">+ โพสต์</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <!-- Sub-ward & Dept Showcase -->
+      <section id="wardShowcase" class="ward-showcase hidden"></section>
+
+      <section id="postsGrid" class="photobook-grid"></section>
+    </main>
+
+    <footer class="footer">
+      <span>WebChain Photo Book • Master-Peer SQLite</span>
+      <span id="versionText"></span>
+    </footer>
+  </div>
+
+  <!-- Floating Right-Corner Dock (Notification Widget + Pin Home Ward) -->
+  <div class="floating-dock">
+    <div id="floatingNotif" class="floating-notif hidden"></div>
+    <div id="floatingPin" class="floating-pin hidden"></div>
+  </div>
+
+  <!-- Photo Book Detail / Lightbox Modal -->
+  <div class="modal-backdrop hidden" id="detailModal" onclick="if(event.target===this) closeModal('detailModal')">
+    <div class="modal modal-lg detail-modal">
+      <button class="detail-close" onclick="closeModal('detailModal')">✕</button>
+      <div id="detailBody"></div>
+    </div>
+  </div>
+
+  <!-- Fullscreen Image Lightbox -->
+  <div class="lightbox-backdrop hidden" id="lightboxModal" onclick="if(event.target===this) closeLightbox()">
+    <button class="lightbox-close" onclick="closeLightbox()" title="ปิด (Esc)">✕</button>
+    <button class="lightbox-nav lightbox-prev" id="lbPrev" onclick="stepLightbox(-1)" title="รูปก่อนหน้า">‹</button>
+    <div class="lightbox-stage">
+      <img id="lbImg" src="" alt="" />
+      <div id="lbCounter" class="lightbox-counter"></div>
+    </div>
+    <button class="lightbox-nav lightbox-next" id="lbNext" onclick="stepLightbox(1)" title="รูปถัดไป">›</button>
+  </div>
+
+  <!-- Color Theme Modal -->
+  <div class="modal-backdrop hidden" id="colorModal" onclick="if(event.target===this) closeModal('colorModal')">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h3>🎨 เลือกสีธีมประจำเครื่อง</h3>
+        <button class="close-btn" onclick="closeModal('colorModal')">✕</button>
+      </div>
+      <div class="color-grid" id="colorPresets"></div>
+      <label style="display:block;font-size:12.5px;font-weight:600;margin:12px 0 6px;">หรือเลือกสีอิสระ:</label>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <input type="color" id="customColorInput" onchange="setThemeColor(this.value)" style="width:52px;height:36px;border:none;cursor:pointer;background:none;" />
+        <span id="customColorCode" style="font-size:13px;color:var(--muted);"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ward Profile Modal -->
+  <div class="modal-backdrop hidden" id="wardModal" onclick="if(event.target===this) closeModal('wardModal')">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3 id="wardModalTitle">ℹ️ ข้อมูลหอผู้ป่วย</h3>
+        <button class="close-btn" onclick="closeModal('wardModal')">✕</button>
+      </div>
+      <div id="wardModalBody">กำลังโหลด...</div>
+    </div>
+  </div>
+
+  <!-- Mobile QR Modal -->
+  <div class="modal-backdrop hidden" id="qrModal" onclick="if(event.target===this) closeModal('qrModal')">
+    <div class="modal modal-sm" style="text-align:center;">
+      <div class="modal-header">
+        <h3>📱 เปิดหน้านี้บนมือถือ</h3>
+        <button class="close-btn" onclick="closeModal('qrModal')">✕</button>
+      </div>
+      <p style="font-size:13px;color:var(--muted);margin-top:0;">สแกน QR Code ด้วยกล้องมือถือ (เชื่อมต่อ Wi-Fi/LAN เดียวกัน)</p>
+      <div id="qrImageBox" class="qr-box">กำลังสร้าง QR...</div>
+      <div id="qrUrlText" class="qr-url"></div>
+    </div>
+  </div>
+
+  <!-- Login / Register Modal -->
+  <div class="modal-backdrop hidden" id="authModal">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h3>เข้าสู่ระบบผู้โพสต์</h3>
+        <button class="close-btn" onclick="closeModal('authModal')">✕</button>
+      </div>
+      <div class="modal-tabs">
+        <button class="modal-tab active" id="tabLogin" onclick="switchAuthTab('login')">เข้าสู่ระบบ</button>
+        <button class="modal-tab" id="tabRegister" onclick="switchAuthTab('register')">ลงทะเบียนผู้โพสต์</button>
+      </div>
+      <form id="loginForm" onsubmit="handleLogin(event)">
+        <label>ชื่อผู้ใช้ (Username)</label>
+        <input type="text" id="loginUsername" required autocomplete="username" />
+        <label>รหัสผ่าน</label>
+        <input type="password" id="loginPassword" required autocomplete="current-password" />
+        <div class="form-error hidden" id="loginError"></div>
+        <button type="submit" class="btn btn-primary full-width">เข้าสู่ระบบ</button>
+      </form>
+      <form id="registerForm" class="hidden" onsubmit="handleRegister(event)">
+        <label>ชื่อผู้ใช้ (ภาษาอังกฤษ เช่น nurse_s11)</label>
+        <input type="text" id="regUsername" required />
+        <label>ชื่อ-สกุล / ชื่อแสดงผล</label>
+        <input type="text" id="regDisplayName" required />
+        <label>หอผู้ป่วย</label>
+        <select id="regWard"></select>
+        <label>รหัสผ่าน (อย่างน้อย 4 ตัวอักษร)</label>
+        <input type="password" id="regPassword" required minlength="4" />
+        <div class="form-error hidden" id="regError"></div>
+        <button type="submit" class="btn btn-primary full-width">สมัครและเข้าสู่ระบบ</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Create / Edit Post Modal -->
+  <div class="modal-backdrop hidden" id="postModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="postModalTitle">สร้างโพสต์ใหม่</h3>
+        <button class="close-btn" onclick="closeModal('postModal')">✕</button>
+      </div>
+      <form id="postForm" onsubmit="handleSavePost(event)">
+        <input type="hidden" id="editPostId" />
+        <div class="form-row">
+          <div>
+            <label>ประเภท</label>
+            <select id="postCategory" onchange="toggleCategoryFields()">
+              <option value="activity">📸 กิจกรรมหอผู้ป่วย (4-5 รูป)</option>
+              <option value="award">🏆 ยินดีคนได้รางวัล / ชื่นชม</option>
+              <option value="meeting">📅 งานประชุม / อบรม</option>
+              <option value="announcement">📢 ประกาศทั่วไป</option>
+            </select>
+          </div>
+          <div>
+            <label>หน่วยงาน</label>
+            <input type="text" id="postScopeDeptLabel" disabled />
+          </div>
+        </div>
+
+        <label>หอผู้ป่วยที่เกี่ยวข้อง</label>
+        <div class="checkbox-group" id="postWardsCheckboxes"></div>
+
+        <label>รูปภาพประกอบ (เลือกได้สูงสุด 5 รูป — บีบอัดอัตโนมัติ)</label>
+        <input type="file" id="postImageInput" accept="image/*" multiple onchange="handleImageUpload(event)" />
+        <div id="imagePreviewBox" class="multi-preview hidden"></div>
+
+        <label>หัวข้อ / ชื่อภาพ *</label>
+        <input type="text" id="postTitle" required placeholder="สั้น กระชับ อ่านง่าย..." />
+
+        <div id="awardFields" class="extra-fields hidden">
+          <div class="form-row">
+            <div>
+              <label>ชื่อผู้ได้รับรางวัล / ทีม</label>
+              <input type="text" id="postHonoreeName" placeholder="เช่น พว.สมใจ ใจดี" />
+            </div>
+            <div>
+              <label>สังกัดหอผู้ป่วย</label>
+              <input type="text" id="postHonoreeWard" placeholder="เช่น สว11 / 8B" />
+            </div>
+          </div>
+          <label>ชื่อรางวัล / ผลงาน</label>
+          <input type="text" id="postAwardTitle" placeholder="เช่น รางวัลพยาบาลดีเด่น ประจำปี 2569" />
+        </div>
+
+        <div id="meetingFields" class="extra-fields hidden">
+          <div class="form-row">
+            <div>
+              <label>วัน-เวลา เริ่ม</label>
+              <input type="datetime-local" id="postEventStart" />
+            </div>
+            <div>
+              <label>วัน-เวลา สิ้นสุด</label>
+              <input type="datetime-local" id="postEventEnd" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div>
+              <label>สถานที่ / ลิงก์ Zoom</label>
+              <input type="text" id="postLocation" placeholder="ห้องประชุม หรือ https://zoom.us/..." />
+            </div>
+            <div>
+              <label>วิทยากร / ผู้จัด</label>
+              <input type="text" id="postSpeaker" placeholder="ชื่อวิทยากร" />
+            </div>
+          </div>
+        </div>
+
+        <label>คำบรรยายสั้นๆ</label>
+        <textarea id="postContent" rows="3" placeholder="คำบรรยายประกอบภาพหรือรายละเอียดเพิ่มเติม..."></textarea>
+
+        <div class="checkbox-group" style="margin-top:8px;">
+          <label class="checkbox-inline"><input type="checkbox" id="postIsPinned" /> 📌 ปักหมุด (ไม่ถูกซ่อนเมื่อเก่า)</label>
+          <label class="checkbox-inline"><input type="checkbox" id="postIsUrgent" /> 🚨 ด่วน</label>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" onclick="closeModal('postModal')">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">บันทึกและเผยแพร่</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Statistics Modal -->
+  <div class="modal-backdrop hidden" id="statsModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>📊 สถิติการโพสต์และการมีส่วนร่วม</h3>
+        <button class="close-btn" onclick="closeModal('statsModal')">✕</button>
+      </div>
+      <div id="statsBody">กำลังโหลด...</div>
+    </div>
+  </div>
+
+  <!-- Sync & Admin Modal -->
+  <div class="modal-backdrop hidden" id="syncModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>🔄 Master-Peer Sync & ตั้งค่าการเชื่อมต่อ</h3>
+        <button class="close-btn" onclick="closeModal('syncModal')">✕</button>
+      </div>
+      <div id="syncBody">กำลังโหลด...</div>
+    </div>
+  </div>
+
+  <!-- Hidden God Vault Modal (therunrock only) -->
+  <div class="modal-backdrop hidden" id="godModal">
+    <div class="modal modal-lg">
+      <div class="modal-header god-header">
+        <h3>⚡ God Vault (therunrock) — สถิติ สำรองข้อมูล & ล้างระบบ</h3>
+        <button class="close-btn" onclick="closeModal('godModal')">✕</button>
+      </div>
+      <div id="godBody">กำลังโหลด...</div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

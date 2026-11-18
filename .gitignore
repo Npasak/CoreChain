@@ -1,0 +1,19 @@
+# Binaries & Packages
+*.exe
+*.exe~
+*.Blz
+_build_tmp/
+
+# Runtime isolated data, media, and backups
+data/
+Pic/
+installed_blocks/
+backups/
+packages/
+
+# Secrets & local env
+.env
+*.db
+*.db-shm
+*.db-wal
+*.sync.json
