@@ -19,14 +19,42 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <nav style="background:#0f172a;color:#fff;padding:8px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px;">
-    <a href="/" style="color:#38bdf8;font-weight:800;text-decoration:none;">⛓️ CoreChain</a>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <a href="/b/webchain/" style="background:#1e293b;color:#fff;text-decoration:none;padding:4px 12px;border-radius:999px;">🏥 WebChain</a>
-      <a href="/b/learnchain/" style="color:#cbd5e1;text-decoration:none;padding:4px 12px;border-radius:999px;">🎓 LearnChain</a>
-      <a href="/b/docchain/" style="color:#cbd5e1;text-decoration:none;padding:4px 12px;border-radius:999px;">📄 DocChain</a>
-    </div>
-  </nav>
+  <style>
+    /* Swiss Army Knife Fan-Out Dock (Bottom-Right Pivot) */
+    #ccSwissDock { position:fixed; bottom:16px; right:16px; z-index:9999; width:42px; height:42px; }
+    .cc-blade {
+      position:absolute; right:21px; top:50%;
+      transform-origin: right center;
+      transform: translateY(-50%) rotate(0deg) scale(0.2);
+      opacity:0; pointer-events:none;
+      padding:7px 14px 7px 12px; border-radius:999px; font-size:12px; font-weight:700;
+      text-decoration:none; white-space:nowrap;
+      background:var(--surface); color:var(--text); border:1.5px solid var(--border);
+      box-shadow:0 6px 18px rgba(15,23,42,0.16);
+      transition: transform 0.38s cubic-bezier(0.34,1.56,0.64,1), opacity 0.22s ease;
+    }
+    .cc-blade.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+    #ccSwissDock.open .cc-blade { opacity:1; pointer-events:auto; }
+    #ccSwissDock.open .cc-b1 { transform: translateY(-50%) rotate(76deg) translateX(-26px) scale(1); transition-delay:0ms; }
+    #ccSwissDock.open .cc-b2 { transform: translateY(-50%) rotate(52deg) translateX(-26px) scale(1); transition-delay:30ms; }
+    #ccSwissDock.open .cc-b3 { transform: translateY(-50%) rotate(26deg) translateX(-26px) scale(1); transition-delay:60ms; }
+    #ccSwissDock.open .cc-b4 { transform: translateY(-50%) rotate(0deg) translateX(-26px) scale(1); transition-delay:90ms; }
+    #ccSwissBtn {
+      position:relative; z-index:2; width:42px; height:42px;
+      background:var(--surface); color:var(--primary); border:1.5px solid var(--border);
+      border-radius:999px; font-size:16px; font-weight:800; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      box-shadow:0 4px 14px rgba(15,23,42,0.18); transition: transform 0.25s ease, background 0.2s ease;
+    }
+    #ccSwissDock.open #ccSwissBtn { background:var(--primary); color:#fff; transform: rotate(45deg) scale(1.06); }
+  </style>
+  <div id="ccSwissDock">
+    <a href="/" class="cc-blade cc-b1">🏠 CoreChain</a>
+    <a href="/b/webchain/" class="cc-blade cc-b2 active">🏥 WebChain</a>
+    <a href="/b/learnchain/" class="cc-blade cc-b3">🎓 LearnChain</a>
+    <a href="/b/docchain/" class="cc-blade cc-b4">📄 DocChain</a>
+    <button id="ccSwissBtn" type="button" onclick="document.getElementById('ccSwissDock').classList.toggle('open')" title="คลี่เมนู CoreChain">⛓️</button>
+  </div>
   <!-- Root Portal Selector (shown only on /) -->
   <div id="portalSelector" class="portal-selector hidden">
     <div class="portal-box">

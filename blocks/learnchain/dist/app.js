@@ -3862,7 +3862,7 @@ function toggleMobileNav(forceState) {
     ? (forceState ? (menu.classList.add('nav-open'), true) : (menu.classList.remove('nav-open'), false))
     : menu.classList.toggle('nav-open');
   if (label) {
-    label.innerText = isOpen ? 'ปิดเมนู' : 'เมนู';
+    label.innerText = 'เมนู';
   }
   if (wrap) {
     wrap.classList.toggle('menu-active', isOpen);
@@ -3872,26 +3872,28 @@ function toggleMobileNav(forceState) {
 
 function onFloatingMenuClick() {
   const wrap = document.getElementById('floatingMenuWrap');
-  if (wrap && wrap.classList.contains('collapsed')) {
-    wrap.classList.remove('collapsed');
-    localStorage.setItem('lc_menu_collapsed', 'false');
-    return;
+  const menu = document.getElementById('navRightMenu');
+  if (!menu) return;
+  const isCurrentlyOpen = menu.classList.contains('nav-open');
+  const nextOpen = !isCurrentlyOpen;
+  toggleMobileNav(nextOpen);
+  if (wrap) {
+    wrap.classList.toggle('collapsed', !nextOpen);
+    localStorage.setItem('lc_menu_collapsed', !nextOpen ? 'true' : 'false');
   }
-  toggleMobileNav();
 }
 
 function toggleFloatingMenuCollapse(e) {
   if (e) e.stopPropagation();
-  const wrap = document.getElementById('floatingMenuWrap');
-  if (!wrap) return;
-  const isCollapsed = wrap.classList.toggle('collapsed');
-  localStorage.setItem('lc_menu_collapsed', isCollapsed ? 'true' : 'false');
+  onFloatingMenuClick();
 }
 
 function initFloatingMenuState() {
   const wrap = document.getElementById('floatingMenuWrap');
-  if (wrap && localStorage.getItem('lc_menu_collapsed') === 'true') {
-    wrap.classList.add('collapsed');
+  const menu = document.getElementById('navRightMenu');
+  const isOpen = menu && menu.classList.contains('nav-open');
+  if (wrap) {
+    wrap.classList.toggle('collapsed', !isOpen);
   }
   if (localStorage.getItem('lc_menu_open') === 'true') {
     toggleMobileNav(true);

@@ -2064,26 +2064,27 @@ body:not(.theme-dark) .nav-role-badge {
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
-  border: 1.5px solid rgba(255, 255, 255, 0.55);
-  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
-  box-shadow: 0 6px 20px rgba(2, 132, 199, 0.35), 0 2px 6px rgba(15, 23, 42, 0.14);
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
   overflow: hidden;
   transition: all 0.22s ease;
 }
 .floating-certs-wrap:hover {
-  box-shadow: 0 10px 26px rgba(2, 132, 199, 0.45), 0 4px 10px rgba(15, 23, 42, 0.16);
-  filter: brightness(1.04);
+  border-color: var(--primary);
+  box-shadow: 0 6px 18px rgba(2, 132, 199, 0.2);
 }
 .floating-certs-main {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  padding: 0.5rem 0.75rem 0.5rem 0.9rem;
+  padding: 0.44rem 0.75rem;
   border: none;
   background: transparent;
-  color: #ffffff;
+  color: var(--text);
   font-family: inherit;
-  font-size: 0.86rem;
+  font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -2095,9 +2096,11 @@ body:not(.theme-dark) .nav-role-badge {
   width: 28px;
   height: 100%;
   min-height: 36px;
-  padding: 0 0.5rem 0 0.35rem;
+  padding: 0 0.45rem 0 0.3rem;
   border: none;
-  border-left: 1px solid rgba(255, 255, 255, 0.32);
+  border-left: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
   background: rgba(0, 0, 0, 0.12);
   color: #ffffff;
   font-size: 0.95rem;
