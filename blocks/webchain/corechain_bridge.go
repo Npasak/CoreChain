@@ -40,6 +40,8 @@ func setupCoreChainBridge(app *fiber.App, env blocksdk.RuntimeEnv) {
 				_ = database.DB.Create(&u).Error
 			}
 			c.Locals("user", &u)
+			c.Locals("userID", u.ID)
+			c.Locals("userRole", u.Role)
 		}
 		return c.Next()
 	})

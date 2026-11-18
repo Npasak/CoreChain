@@ -5,12 +5,14 @@ package main
 import (
 	"os/exec"
 	"runtime"
+	"strings"
 	"syscall"
 	"unsafe"
 )
 
 var (
 	user32               = syscall.NewLazyDLL("user32.dll")
+	gdi32                = syscall.NewLazyDLL("gdi32.dll")
 	shell32              = syscall.NewLazyDLL("shell32.dll")
 	kernel32             = syscall.NewLazyDLL("kernel32.dll")
 	procRegisterClassExW = user32.NewProc("RegisterClassExW")
@@ -26,27 +28,46 @@ var (
 	procSetForegroundWin = user32.NewProc("SetForegroundWindow")
 	procGetCursorPos     = user32.NewProc("GetCursorPos")
 	procLoadIconW        = user32.NewProc("LoadIconW")
+	procCreateIconIndir  = user32.NewProc("CreateIconIndirect")
+	procDestroyIcon      = user32.NewProc("DestroyIcon")
+
+	procCreateBitmap       = gdi32.NewProc("CreateBitmap")
+	procCreateCompatibleDC = gdi32.NewProc("CreateCompatibleDC")
+	procDeleteDC           = gdi32.NewProc("DeleteDC")
+	procCreateCompBitmap   = gdi32.NewProc("CreateCompatibleBitmap")
+	procSelectObject       = gdi32.NewProc("SelectObject")
+	procDeleteObject       = gdi32.NewProc("DeleteObject")
+	procCreateSolidBrush   = gdi32.NewProc("CreateSolidBrush")
+	procCreatePen          = gdi32.NewProc("CreatePen")
+	procRoundRect          = gdi32.NewProc("RoundRect")
+	procEllipse            = gdi32.NewProc("Ellipse")
+	procMoveToEx           = gdi32.NewProc("MoveToEx")
+	procLineTo             = gdi32.NewProc("LineTo")
+
 	procShellNotifyIconW = shell32.NewProc("Shell_NotifyIconW")
 	procGetModuleHandleW = kernel32.NewProc("GetModuleHandleW")
 )
 
 const (
-	wmUser        = 0x0400
-	wmTrayIcon    = wmUser + 1
-	wmRButtonUp   = 0x0205
-	wmLButtonDbl  = 0x0203
-	wmCommand     = 0x0111
-	nimAdd        = 0x00000000
-	nimDelete     = 0x00000002
-	nifMessage    = 0x00000001
-	nifIcon       = 0x00000002
-	nifTip        = 0x00000004
-	mfString      = 0x00000000
-	mfSeparator   = 0x00000800
-	tpmReturnCmd  = 0x0100
-	cmdOpen       = 1001
-	cmdUpdate     = 1002
-	cmdQuit       = 1003
+	wmUser       = 0x0400
+	wmTrayIcon   = wmUser + 1
+	wmRButtonUp  = 0x0205
+	wmLButtonDbl = 0x0203
+	nimAdd       = 0x00000000
+	nimDelete    = 0x00000002
+	nifMessage   = 0x00000001
+	nifIcon      = 0x00000002
+	nifTip       = 0x00000004
+	mfString     = 0x00000000
+	mfSeparator  = 0x00000800
+	tpmReturnCmd = 0x0100
+
+	cmdOpen      = 1001
+	cmdWebChain  = 1002
+	cmdLearn     = 1003
+	cmdDocChain  = 1004
+	cmdUpdate    = 1005
+	cmdQuit      = 1006
 )
 
 type wndClassExW struct {
@@ -80,6 +101,14 @@ type notifyIconDataW struct {
 	dwInfoFlags      uint32
 }
 
+type iconInfo struct {
+	fIcon    int32
+	xHotspot uint32
+	yHotspot uint32
+	hbmMask  uintptr
+	hbmColor uintptr
+}
+
 type point struct {
 	x, y int32
 }
@@ -93,26 +122,115 @@ type msg struct {
 	pt      point
 }
 
+func rgb(r, g, b uint32) uintptr {
+	return uintptr(r | (g << 8) | (b << 16))
+}
+
+// createCoreChainTrayIcon draws a custom 32x32 CoreChain badge with interlocking chain rings.
+func createCoreChainTrayIcon() uintptr {
+	const size = 32
+	hdc, _, _ := procCreateCompatibleDC.Call(0)
+	if hdc == 0 {
+		hIcon, _, _ := procLoadIconW.Call(0, 32512)
+		return hIcon
+	}
+	defer procDeleteDC.Call(hdc)
+
+	// Color bitmap (32-bit screen-compatible) and monochrome mask
+	hbmColor, _, _ := procCreateCompBitmap.Call(hdc, size, size)
+	hbmMask, _, _ := procCreateBitmap.Call(size, size, 1, 1, 0)
+	if hbmColor == 0 || hbmMask == 0 {
+		hIcon, _, _ := procLoadIconW.Call(0, 32512)
+		return hIcon
+	}
+	defer procDeleteObject.Call(hbmColor)
+	defer procDeleteObject.Call(hbmMask)
+
+	// Fill mask with 0 (opaque)
+	maskDC, _, _ := procCreateCompatibleDC.Call(0)
+	oldMask, _, _ := procSelectObject.Call(maskDC, hbmMask)
+	blackBrush, _, _ := procCreateSolidBrush.Call(0)
+	oldMaskBrush, _, _ := procSelectObject.Call(maskDC, blackBrush)
+	procRoundRect.Call(maskDC, 0, 0, size, size, 10, 10)
+	procSelectObject.Call(maskDC, oldMaskBrush)
+	procDeleteObject.Call(blackBrush)
+	procSelectObject.Call(maskDC, oldMask)
+	procDeleteDC.Call(maskDC)
+
+	// Draw CoreChain emblem on color bitmap
+	oldBmp, _, _ := procSelectObject.Call(hdc, hbmColor)
+	bgBrush, _, _ := procCreateSolidBrush.Call(rgb(2, 132, 199)) // Sky-600 #0284c7
+	bgPen, _, _ := procCreatePen.Call(0, 1, rgb(56, 189, 248))  // Sky-400 #38bdf8
+	oldBrush, _, _ := procSelectObject.Call(hdc, bgBrush)
+	oldPen, _, _ := procSelectObject.Call(hdc, bgPen)
+	procRoundRect.Call(hdc, 0, 0, size, size, 10, 10)
+
+	// Inner dark core diamond/circle
+	coreBrush, _, _ := procCreateSolidBrush.Call(rgb(15, 23, 42)) // Slate-900
+	procSelectObject.Call(hdc, coreBrush)
+	procEllipse.Call(hdc, 5, 5, 27, 27)
+
+	// Interlocking white & cyan chain links
+	linkPen1, _, _ := procCreatePen.Call(0, 3, rgb(255, 255, 255))
+	nullBrush, _, _ := procCreateSolidBrush.Call(rgb(15, 23, 42))
+	procSelectObject.Call(hdc, linkPen1)
+	procSelectObject.Call(hdc, nullBrush)
+	procRoundRect.Call(hdc, 7, 9, 19, 19, 6, 6)
+
+	linkPen2, _, _ := procCreatePen.Call(0, 3, rgb(56, 189, 248))
+	procSelectObject.Call(hdc, linkPen2)
+	procRoundRect.Call(hdc, 13, 13, 25, 23, 6, 6)
+
+	// Center link bridge
+	procMoveToEx.Call(hdc, 13, 15, 0)
+	procLineTo.Call(hdc, 19, 17)
+
+	procSelectObject.Call(hdc, oldBrush)
+	procSelectObject.Call(hdc, oldPen)
+	procSelectObject.Call(hdc, oldBmp)
+	for _, obj := range []uintptr{bgBrush, bgPen, coreBrush, linkPen1, nullBrush, linkPen2} {
+		procDeleteObject.Call(obj)
+	}
+
+	ii := iconInfo{
+		fIcon:    1,
+		hbmMask:  hbmMask,
+		hbmColor: hbmColor,
+	}
+	hIcon, _, _ := procCreateIconIndir.Call(uintptr(unsafe.Pointer(&ii)))
+	if hIcon == 0 {
+		hIcon, _, _ = procLoadIconW.Call(0, 32512)
+	}
+	return hIcon
+}
+
 func runSystemTray(url string, onCheckUpdate func(), onQuit func()) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
+	baseURL := strings.TrimRight(url, "/")
 	hInst, _, _ := procGetModuleHandleW.Call(0)
 	className, _ := syscall.UTF16PtrFromString("CoreChainTrayClass")
 
 	wndProc := syscall.NewCallback(func(hwnd uintptr, uMsg uint32, wParam, lParam uintptr) uintptr {
 		if uMsg == wmTrayIcon {
 			if lParam == wmLButtonDbl {
-				_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+				_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", baseURL+"/").Start()
 			} else if lParam == wmRButtonUp {
 				menu, _, _ := procCreatePopupMenu.Call()
-				s1, _ := syscall.UTF16PtrFromString("Open CoreChain Launcher")
-				s2, _ := syscall.UTF16PtrFromString("Check Background Updates")
-				s3, _ := syscall.UTF16PtrFromString("Quit CoreChain")
-				procAppendMenuW.Call(menu, mfString, cmdOpen, uintptr(unsafe.Pointer(s1)))
-				procAppendMenuW.Call(menu, mfString, cmdUpdate, uintptr(unsafe.Pointer(s2)))
+				addItem := func(id uintptr, text string) {
+					p, _ := syscall.UTF16PtrFromString(text)
+					procAppendMenuW.Call(menu, mfString, id, uintptr(unsafe.Pointer(p)))
+				}
+				addItem(cmdOpen, "⛓️ เปิด CoreChain Launcher")
 				procAppendMenuW.Call(menu, mfSeparator, 0, 0)
-				procAppendMenuW.Call(menu, mfString, cmdQuit, uintptr(unsafe.Pointer(s3)))
+				addItem(cmdWebChain, "🏥 เปิด WebChain (เว็บไซต์หน่วยงาน)")
+				addItem(cmdLearn, "🎓 เปิด LearnChain (E-Learning)")
+				addItem(cmdDocChain, "📄 เปิด DocChain (คลังเอกสาร)")
+				procAppendMenuW.Call(menu, mfSeparator, 0, 0)
+				addItem(cmdUpdate, "🔄 ตรวจอัปเดตพื้นหลัง (.Blz)")
+				procAppendMenuW.Call(menu, mfSeparator, 0, 0)
+				addItem(cmdQuit, "❌ ออกจาก CoreChain")
 
 				var pt point
 				procGetCursorPos.Call(uintptr(unsafe.Pointer(&pt)))
@@ -122,7 +240,13 @@ func runSystemTray(url string, onCheckUpdate func(), onQuit func()) {
 
 				switch cmdID {
 				case cmdOpen:
-					_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+					_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", baseURL+"/").Start()
+				case cmdWebChain:
+					_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", baseURL+"/b/webchain/").Start()
+				case cmdLearn:
+					_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", baseURL+"/b/learnchain/").Start()
+				case cmdDocChain:
+					_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", baseURL+"/b/docchain/").Start()
 				case cmdUpdate:
 					if onCheckUpdate != nil {
 						onCheckUpdate()
@@ -153,7 +277,9 @@ func runSystemTray(url string, onCheckUpdate func(), onQuit func()) {
 		return
 	}
 
-	hIcon, _, _ := procLoadIconW.Call(0, 32512) // IDI_APPLICATION
+	hIcon := createCoreChainTrayIcon()
+	defer procDestroyIcon.Call(hIcon)
+
 	var nid notifyIconDataW
 	nid.cbSize = uint32(unsafe.Sizeof(nid))
 	nid.hWnd = hwnd
@@ -161,7 +287,7 @@ func runSystemTray(url string, onCheckUpdate func(), onQuit func()) {
 	nid.uFlags = nifMessage | nifIcon | nifTip
 	nid.uCallbackMessage = wmTrayIcon
 	nid.hIcon = hIcon
-	tip, _ := syscall.UTF16FromString("CoreChain Decentralized Launcher")
+	tip, _ := syscall.UTF16FromString("CoreChain Decentralized Launcher (Running)")
 	copy(nid.szTip[:], tip)
 	procShellNotifyIconW.Call(nimAdd, uintptr(unsafe.Pointer(&nid)))
 	defer procShellNotifyIconW.Call(nimDelete, uintptr(unsafe.Pointer(&nid)))

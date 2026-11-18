@@ -66,6 +66,21 @@ function changeAppTheme(themeName) {
 }
 
 async function checkAuthSession() {
+  // 1. Check CoreChain Unified Auth SSO first
+  try {
+    const me = await fetchJSON('/api/auth/me');
+    if (me && me.success && me.user) {
+      currentUser = me.user;
+      currentUserID = currentUser.id;
+      currentUser.is_manager = !!me.is_manager;
+      localStorage.setItem('learnchain_user', JSON.stringify(currentUser));
+      showAppScreen();
+      renderRoleDashboard(currentUser.role || 'learner');
+      return;
+    }
+  } catch (e) {}
+
+  // 2. Fallback to localStorage session
   const savedUser = localStorage.getItem('learnchain_user');
   if (savedUser) {
     try {

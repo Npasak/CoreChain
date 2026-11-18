@@ -626,11 +626,11 @@ body {
   display: flex; align-items: center; justify-content: center;
 }
 
-/* Floating Right-Corner Dock */
+/* Floating Right-Corner Dock (Pin Home Ward beside Swiss Knife) */
 .floating-dock {
   position: fixed;
-  right: 20px;
-  bottom: 20px;
+  right: 70px;
+  bottom: 16px;
   z-index: 45;
   display: flex;
   align-items: flex-end;
@@ -663,9 +663,12 @@ body {
   border-color: #fff;
 }
 
-/* Floating Right-Corner Notification Widget */
+/* Floating Top-Right Notification Widget */
 .floating-notif {
-  position: relative;
+  position: fixed;
+  top: 72px;
+  right: 18px;
+  z-index: 46;
 }
 .notif-panel {
   width: 340px;

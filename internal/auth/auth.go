@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"strings"
 	"time"
@@ -148,8 +150,14 @@ func (s *Service) Login(c *fiber.Ctx) error {
 	if !user.IsActive {
 		return c.Status(403).JSON(fiber.Map{"error": "บัญชีถูกระงับการใช้งาน"})
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(body.Password)); err != nil {
+	if !verifyPassword(user.PasswordHash, body.Password) {
 		return c.Status(401).JSON(fiber.Map{"error": "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"})
+	}
+	// Upgrade legacy LearnChain SHA-256 hash to bcrypt transparently
+	if len(user.PasswordHash) == 64 && !strings.HasPrefix(user.PasswordHash, "$2") {
+		if newHash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost); err == nil {
+			s.db.Model(&user).Update("password_hash", string(newHash))
+		}
 	}
 
 	token := uuid.New().String()
@@ -313,6 +321,21 @@ func (s *Service) SetBlockRole(c *fiber.Ctx) error {
 		s.db.Model(&br).Update("role", body.Role)
 	}
 	return c.JSON(fiber.Map{"ok": true, "block_role": br})
+}
+
+func verifyPassword(storedHash, plain string) bool {
+	if storedHash == "" || plain == "" {
+		return false
+	}
+	if strings.HasPrefix(storedHash, "$2") {
+		return bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(plain)) == nil
+	}
+	// Support LearnChain legacy salted SHA-256 password hashes (64 hex chars)
+	if len(storedHash) == 64 {
+		h := sha256.Sum256([]byte("learnchain-sbt-salt::" + strings.TrimSpace(plain)))
+		return hex.EncodeToString(h[:]) == storedHash
+	}
+	return false
 }
 
 func (s *Service) getUserBlockRolesMap(userID string) map[string]string {

@@ -188,12 +188,15 @@ function toggleOldPosts() {
 }
 
 async function fetchMe() {
-  if (!state.token) { renderAuthArea(); return; }
-  const data = await api('/api/auth/me');
-  state.user = data.user || null;
-  if (!state.user) {
-    state.token = '';
-    localStorage.removeItem('webchain_token');
+  try {
+    const data = await api('/api/auth/me');
+    state.user = data.user || null;
+    if (!state.user && state.token) {
+      state.token = '';
+      localStorage.removeItem('webchain_token');
+    }
+  } catch {
+    state.user = null;
   }
   renderAuthArea();
 }
