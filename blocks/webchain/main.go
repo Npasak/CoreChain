@@ -42,7 +42,11 @@ func main() {
 
 	env := blocksdk.LoadRuntimeEnv("webchain", "8081")
 	cfg := config.LoadConfig()
-	cfg.Port = env.Port
+	if pubPort := os.Getenv("CORECHAIN_PUBLIC_PORT"); pubPort != "" {
+		cfg.Port = pubPort
+	} else {
+		cfg.Port = env.Port
+	}
 	cfg.DBPath = env.DBPath
 	cfg.AutoOpenBrowser = false
 	database.InitDB(cfg.DBPath)
@@ -145,7 +149,7 @@ func main() {
 		Browse: false,
 	}))
 
-	addr := "127.0.0.1:" + cfg.Port
+	addr := "127.0.0.1:" + env.Port
 	go func() {
 		if err := app.Listen(addr); err != nil {
 			log.Fatalf("Server stopped: %v", err)

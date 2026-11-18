@@ -11,7 +11,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-const Version = "1.2.0"
+const Version = "1.2.1"
 
 type Config struct {
 	Port               string

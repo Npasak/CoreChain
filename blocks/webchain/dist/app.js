@@ -448,7 +448,7 @@ function openQRModal() {
   const wardParam = state.ward && state.ward !== 'all' ? `?ward=${encodeURIComponent(state.ward)}` : '';
   const target = `${base}/${state.dept}${wardParam}`;
   document.getElementById('qrUrlText').textContent = target;
-  document.getElementById('qrImageBox').innerHTML = `<img src="/api/qr?url=${encodeURIComponent(target)}" alt="QR Code" style="width:200px;height:200px;" />`;
+  document.getElementById('qrImageBox').innerHTML = `<img src="/b/webchain/api/qr?url=${encodeURIComponent(target)}" alt="QR Code" style="width:200px;height:200px;" />`;
   openModal('qrModal');
 }
 

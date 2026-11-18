@@ -192,6 +192,9 @@ func (h *PostHandler) CreatePost(c *fiber.Ctx) error {
 	if err := database.DB.Create(&post).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{"success": false, "message": "บันทึกโพสต์ไม่สำเร็จ"})
 	}
+	if GlobalSyncHandler != nil {
+		GlobalSyncHandler.TriggerImmediateSync()
+	}
 
 	database.DB.Create(&models.AuditLog{
 		ID:        uuid.NewString(),
@@ -310,6 +313,9 @@ func (h *PostHandler) UpdatePost(c *fiber.Ctx) error {
 	}
 	post.UpdatedAt = time.Now()
 	database.DB.Save(&post)
+	if GlobalSyncHandler != nil {
+		GlobalSyncHandler.TriggerImmediateSync()
+	}
 
 	return c.JSON(fiber.Map{"success": true, "post": post})
 }
@@ -329,6 +335,9 @@ func (h *PostHandler) DeletePost(c *fiber.Ctx) error {
 	}
 
 	database.DB.Delete(&post)
+	if GlobalSyncHandler != nil {
+		GlobalSyncHandler.TriggerImmediateSync()
+	}
 	database.DB.Create(&models.AuditLog{
 		ID:        uuid.NewString(),
 		ActorName: user.DisplayName,

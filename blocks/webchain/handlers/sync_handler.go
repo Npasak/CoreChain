@@ -71,6 +71,8 @@ type SyncHandler struct {
 	syncFail       int64
 }
 
+var GlobalSyncHandler *SyncHandler
+
 func NewSyncHandler() *SyncHandler {
 	hostname, _ := os.Hostname()
 	if hostname == "" {
@@ -104,15 +106,31 @@ func NewSyncHandler() *SyncHandler {
 	}
 	h.loadConfig()
 	h.touchSelf()
+	GlobalSyncHandler = h
 	go h.autoSyncLoop()
 	return h
+}
+
+func (h *SyncHandler) TriggerImmediateSync() {
+	go h.syncWithPeers()
+}
+
+func formatWebChainURL(host, port string) string {
+	base := "http://" + host
+	if port != "" && port != "80" {
+		base = fmt.Sprintf("http://%s:%s", host, port)
+	}
+	if blockID := strings.TrimSpace(os.Getenv("CORECHAIN_BLOCK_ID")); blockID != "" {
+		return base + "/b/" + blockID
+	}
+	return base
 }
 
 func discoverLocalURLs(port string) []string {
 	var urls []string
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		return []string{"http://localhost:" + port}
+		return []string{formatWebChainURL("localhost", port)}
 	}
 	for _, iface := range ifaces {
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
@@ -124,12 +142,12 @@ func discoverLocalURLs(port string) []string {
 		}
 		for _, addr := range addrs {
 			if ipNet, ok := addr.(*net.IPNet); ok && ipNet.IP.To4() != nil {
-				urls = append(urls, fmt.Sprintf("http://%s:%s", ipNet.IP.String(), port))
+				urls = append(urls, formatWebChainURL(ipNet.IP.String(), port))
 			}
 		}
 	}
 	if len(urls) == 0 {
-		urls = append(urls, "http://localhost:"+port)
+		urls = append(urls, formatWebChainURL("localhost", port))
 	}
 	return urls
 }
