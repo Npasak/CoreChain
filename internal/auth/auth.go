@@ -4,16 +4,19 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"corechain/internal/models"
 	"corechain/sdk/blocksdk"
 
+	"github.com/glebarez/sqlite"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 const SessionCookieName = "corechain_session"
@@ -144,14 +147,17 @@ func (s *Service) Login(c *fiber.Ctx) error {
 	}
 
 	var user models.UnifiedUser
-	if err := s.db.Where("username = ? OR LOWER(email) = ?", ident, strings.ToLower(ident)).First(&user).Error; err != nil {
-		return c.Status(401).JSON(fiber.Map{"error": "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"})
+	err := s.db.Where("username = ? OR LOWER(email) = ?", ident, strings.ToLower(ident)).First(&user).Error
+	if err != nil || !verifyPassword(user.PasswordHash, body.Password) {
+		// Just-in-time check against synced block DBs (learnchain.db / webchain.db) on other machines
+		if syncedUser, ok := s.trySyncUserFromBlockDBs(ident, body.Password); ok {
+			user = *syncedUser
+		} else {
+			return c.Status(401).JSON(fiber.Map{"error": "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"})
+		}
 	}
 	if !user.IsActive {
 		return c.Status(403).JSON(fiber.Map{"error": "บัญชีถูกระงับการใช้งาน"})
-	}
-	if !verifyPassword(user.PasswordHash, body.Password) {
-		return c.Status(401).JSON(fiber.Map{"error": "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"})
 	}
 	// Upgrade legacy LearnChain SHA-256 hash to bcrypt transparently
 	if len(user.PasswordHash) == 64 && !strings.HasPrefix(user.PasswordHash, "$2") {
@@ -336,6 +342,104 @@ func verifyPassword(storedHash, plain string) bool {
 		return hex.EncodeToString(h[:]) == storedHash
 	}
 	return false
+}
+
+// trySyncUserFromBlockDBs checks data/learnchain.db and data/webchain.db for a matching user+password
+// (e.g. on a fresh machine after LAN/Drive sync) and provisions them into corechain.db automatically.
+func (s *Service) trySyncUserFromBlockDBs(ident, plain string) (*models.UnifiedUser, bool) {
+	lowerIdent := strings.ToLower(strings.TrimSpace(ident))
+
+	// 1. Check data/learnchain.db
+	if ldb, err := gorm.Open(sqlite.Open(filepath.Join("data", "learnchain.db")), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)}); err == nil {
+		var lu struct {
+			ID            uint
+			WalletAddress string
+			Name          string
+			Role          string
+			Email         string
+			PasswordHash  string
+			Ward          string
+			AvatarURL     string
+		}
+		if err := ldb.Table("users").Where("LOWER(email) = ? AND password_hash != ''", lowerIdent).Order("id desc").First(&lu).Error; err == nil {
+			if verifyPassword(lu.PasswordHash, plain) {
+				return s.upsertUnifiedFromBlock(lowerIdent, lowerIdent, lu.Name, lu.PasswordHash, "user", "all", lu.Ward, lu.WalletAddress, "learnchain", lu.Role), true
+			}
+		}
+	}
+
+	// 2. Check data/webchain.db
+	if wdb, err := gorm.Open(sqlite.Open(filepath.Join("data", "webchain.db")), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)}); err == nil {
+		var wu struct {
+			ID           string
+			Username     string
+			DisplayName  string
+			PasswordHash string
+			Role         string
+			Department   string
+			Ward         string
+			IsActive     bool
+			IsHidden     bool
+		}
+		if err := wdb.Table("users").Where("username = ? AND is_active = ?", ident, true).First(&wu).Error; err == nil {
+			if verifyPassword(wu.PasswordHash, plain) {
+				gRole := "user"
+				if wu.Role == "admin" || wu.Role == "god" {
+					gRole = wu.Role
+				}
+				return s.upsertUnifiedFromBlock(wu.Username, "", wu.DisplayName, wu.PasswordHash, gRole, wu.Department, wu.Ward, "", "webchain", wu.Role), true
+			}
+		}
+	}
+
+	return nil, false
+}
+
+func (s *Service) upsertUnifiedFromBlock(username, email, displayName, pwHash, globalRole, dept, ward, wallet, blockID, blockRole string) *models.UnifiedUser {
+	var u models.UnifiedUser
+	q := s.db.Where("username = ?", username)
+	if email != "" {
+		q = q.Or("LOWER(email) = ?", email)
+	}
+	if err := q.First(&u).Error; err != nil {
+		if displayName == "" {
+			displayName = username
+		}
+		if dept == "" {
+			dept = "all"
+		}
+		u = models.UnifiedUser{
+			ID:            uuid.New().String(),
+			Username:      username,
+			Email:         email,
+			DisplayName:   displayName,
+			PasswordHash:  pwHash,
+			GlobalRole:    globalRole,
+			Department:    dept,
+			Ward:          ward,
+			WalletAddress: wallet,
+			IsActive:      true,
+		}
+		_ = s.db.Create(&u).Error
+	} else {
+		_ = s.db.Model(&u).Updates(map[string]any{
+			"password_hash": pwHash,
+			"is_active":     true,
+		}).Error
+		u.PasswordHash = pwHash
+	}
+	if blockID != "" && blockRole != "" {
+		var br models.UserBlockRole
+		if err := s.db.Where("user_id = ? AND block_id = ?", u.ID, blockID).First(&br).Error; err != nil {
+			_ = s.db.Create(&models.UserBlockRole{
+				ID:      uuid.New().String(),
+				UserID:  u.ID,
+				BlockID: blockID,
+				Role:    blockRole,
+			}).Error
+		}
+	}
+	return &u
 }
 
 func (s *Service) getUserBlockRolesMap(userID string) map[string]string {
