@@ -1,7 +1,8 @@
-# Binaries & Packages
+# Binaries & Packages (track release 2-arch binaries and .Blz packages)
 *.exe
+!CoreChain-win-arm.exe
+!CoreChain-win-x64.exe
 *.exe~
-*.Blz
 _build_tmp/
 
 # Runtime isolated data, media, and backups
@@ -9,7 +10,6 @@ data/
 Pic/
 installed_blocks/
 backups/
-packages/
 
 # Secrets & local env
 .env

@@ -18,7 +18,7 @@ When the user says **`upgithub`**, follow these steps:
    - **LearnChain (`..\DApps`):** Build both `LearnChain-arm64.exe` and `LearnChain-x64.exe` (via `.\build.ps1` or `GOOS=windows GOARCH=arm64|amd64`).
    - **WebChain (`..\WebChain`):** Build both `WebChain-windows-arm64.exe` and `WebChain-windows-amd64.exe` (via `.\build.ps1` or `GOOS=windows GOARCH=arm64|amd64`).
 3. **Verify & Clean:**
-   - Ensure `.gitignore` excludes binaries (`*.exe`, `*.Blz`), databases (`*.db`), and `Pic/` media.
+   - Ensure `.gitignore` tracks `CoreChain-win-arm.exe`, `CoreChain-win-x64.exe`, and `packages/*.Blz`, while excluding `CoreChain.exe`, databases (`*.db`), and `Pic/` media.
 4. **Commit & Push All Affected Repos:**
    - Commit & push `CoreChain` (`https://github.com/Npasak/CoreChain.git`), `LearnChain` (`https://github.com/Npasak/Learnchain.git`), and `WebChain` (`https://github.com/Npasak/webchain.git`) on `main`.
    - Report the build outputs, version numbers, and git push results.
