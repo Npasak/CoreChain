@@ -247,6 +247,7 @@ func (h *SyncHandler) syncWithPeers() {
 		} else {
 			peers = append(peers,
 				PeerNodeInfo{NodeID: "preferred-cc", LanURL: "http://" + prefIP + "/b/webchain"},
+				PeerNodeInfo{NodeID: "preferred-cc8080", LanURL: "http://" + prefIP + ":8080/b/webchain"},
 				PeerNodeInfo{NodeID: "preferred-standalone", LanURL: "http://" + prefIP + ":8889"},
 			)
 		}
@@ -340,10 +341,11 @@ func (h *SyncHandler) discoverPeersFromCoreChainAndLearnChain() {
 		})
 	}
 
-	// 1. Ask CoreChain Mesh (/api/sync/status)
+	// 1. Ask CoreChain Mesh (/api/sync/status) & LearnChain live cross-subnet peers (/b/learnchain/api/sync/info)
 	if busURL := strings.TrimSpace(os.Getenv("CORECHAIN_BUS_URL")); busURL != "" {
+		busBase := strings.TrimRight(busURL, "/")
 		c := &http.Client{Timeout: 3 * time.Second}
-		if resp, err := c.Get(strings.TrimRight(busURL, "/") + "/api/sync/status"); err == nil {
+		if resp, err := c.Get(busBase + "/api/sync/status"); err == nil {
 			var res struct {
 				Peers []struct {
 					NodeID   string `json:"node_id"`
@@ -357,6 +359,53 @@ func (h *SyncHandler) discoverPeersFromCoreChainAndLearnChain() {
 					if !p.IsSelf && p.LanURL != "" {
 						addCandidate(p.NodeID, p.Hostname, strings.TrimRight(p.LanURL, "/")+"/b/webchain")
 					}
+				}
+			}
+			_ = resp.Body.Close()
+		}
+
+		// Live cross-subnet peers from LearnChain GAS signaling
+		if resp, err := c.Get(busBase + "/b/learnchain/api/sync/info"); err == nil {
+			var linfo struct {
+				ActiveNodes []struct {
+					NodeID   string   `json:"node_id"`
+					Hostname string   `json:"hostname"`
+					LanURL   string   `json:"lan_url"`
+					LanURLs  []string `json:"lan_urls"`
+					IsSelf   bool     `json:"is_self"`
+				} `json:"active_nodes"`
+				Config struct {
+					KnownPeers []struct {
+						NodeID   string `json:"node_id"`
+						Hostname string `json:"hostname"`
+						LanURL   string `json:"lan_url"`
+					} `json:"known_peers"`
+				} `json:"config"`
+			}
+			if json.NewDecoder(resp.Body).Decode(&linfo) == nil {
+				addFromURL := func(hostname, rawURL string) {
+					u, err := url.Parse(rawURL)
+					if err != nil || u.Hostname() == "" {
+						return
+					}
+					host := u.Hostname()
+					addCandidate("wc-cc-"+host, hostname, "http://"+host+"/b/webchain")
+					addCandidate("wc-cc8080-"+host, hostname, "http://"+host+":8080/b/webchain")
+					addCandidate("wc-st-"+host, hostname, "http://"+host+":8889")
+				}
+				for _, an := range linfo.ActiveNodes {
+					if an.IsSelf {
+						continue
+					}
+					if an.LanURL != "" {
+						addFromURL(an.Hostname, an.LanURL)
+					}
+					for _, u := range an.LanURLs {
+						addFromURL(an.Hostname, u)
+					}
+				}
+				for _, kp := range linfo.Config.KnownPeers {
+					addFromURL(kp.Hostname, kp.LanURL)
 				}
 			}
 			_ = resp.Body.Close()
