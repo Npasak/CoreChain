@@ -46,9 +46,11 @@ type SyncConfig struct {
 }
 
 type SyncSnapshot struct {
-	App           string                 `json:"app"`
-	NodeID        string                 `json:"node_id"`
-	Timestamp     time.Time              `json:"timestamp"`
+	App            string                 `json:"app"`
+	NodeID         string                 `json:"node_id"`
+	Hostname       string                 `json:"hostname,omitempty"`
+	LanURL         string                 `json:"lan_url,omitempty"`
+	Timestamp      time.Time              `json:"timestamp"`
 	Users         []models.User          `json:"users"`
 	Posts         []models.Post          `json:"posts"`
 	ExternalLinks []models.ExternalLink  `json:"external_links"`
@@ -108,6 +110,7 @@ func NewSyncHandler() *SyncHandler {
 	}
 	h.loadConfig()
 	h.touchSelf()
+	deduplicatePosts()
 	GlobalSyncHandler = h
 	go h.autoSyncLoop()
 	return h
@@ -286,6 +289,10 @@ func (h *SyncHandler) syncWithPeers() {
 
 		// Push our snapshot back so both Master & Peer stay identical
 		localSnap := buildLocalSnapshot(h.nodeID)
+		localSnap.Hostname = h.hostname
+		if len(h.lanURLs) > 0 {
+			localSnap.LanURL = h.lanURLs[0]
+		}
 		payload, _ := json.Marshal(localSnap)
 		pushResp, err := client.Post(target+"/api/sync/import", "application/json", bytes.NewReader(payload))
 		if err == nil && pushResp != nil {
@@ -535,6 +542,20 @@ func buildLocalSnapshot(nodeID string) SyncSnapshot {
 	}
 }
 
+func deduplicatePosts() {
+	var posts []models.Post
+	database.DB.Order("created_at asc").Find(&posts)
+	seen := make(map[string]bool)
+	for _, p := range posts {
+		key := strings.TrimSpace(p.Title) + "|" + p.Category + "|" + p.ScopeDept + "|" + p.AuthorName
+		if seen[key] {
+			database.DB.Unscoped().Delete(&p)
+		} else {
+			seen[key] = true
+		}
+	}
+}
+
 func mergeSnapshot(snap SyncSnapshot) int {
 	merged := 0
 	for _, u := range snap.Users {
@@ -551,6 +572,10 @@ func mergeSnapshot(snap SyncSnapshot) int {
 	for _, p := range snap.Posts {
 		var existing models.Post
 		err := database.DB.Unscoped().Where("id = ?", p.ID).First(&existing).Error
+		if err != nil && p.Title != "" {
+			// Deduplicate posts with identical content (e.g. initial seeded posts with different UUIDs)
+			err = database.DB.Unscoped().Where("title = ? AND category = ? AND scope_dept = ? AND author_name = ?", p.Title, p.Category, p.ScopeDept, p.AuthorName).First(&existing).Error
+		}
 		if err != nil {
 			database.DB.Unscoped().Create(&p)
 			merged++
@@ -562,6 +587,7 @@ func mergeSnapshot(snap SyncSnapshot) int {
 				if existing.ApplauseCount > p.ApplauseCount {
 					p.ApplauseCount = existing.ApplauseCount
 				}
+				p.ID = existing.ID
 				database.DB.Unscoped().Save(&p)
 				merged++
 			} else if existing.ApplauseCount != p.ApplauseCount {
@@ -694,7 +720,12 @@ func (h *SyncHandler) AddPeer(c *fiber.Ctx) error {
 }
 
 func (h *SyncHandler) ExportSnapshot(c *fiber.Ctx) error {
-	return c.JSON(buildLocalSnapshot(h.nodeID))
+	snap := buildLocalSnapshot(h.nodeID)
+	snap.Hostname = h.hostname
+	if len(h.lanURLs) > 0 {
+		snap.LanURL = h.lanURLs[0]
+	}
+	return c.JSON(snap)
 }
 
 func (h *SyncHandler) ImportSnapshot(c *fiber.Ctx) error {
@@ -703,6 +734,50 @@ func (h *SyncHandler) ImportSnapshot(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"success": false, "message": "ข้อมูล Snapshot ไม่ถูกต้อง"})
 	}
 	merged := mergeSnapshot(snap)
+
+	if snap.NodeID != "" && snap.NodeID != h.nodeID {
+		peerURL := strings.TrimRight(strings.TrimSpace(snap.LanURL), "/")
+		if peerURL == "" {
+			if rip := strings.TrimSpace(c.Get("X-Real-IP")); rip != "" && rip != "127.0.0.1" && rip != "::1" {
+				peerURL = "http://" + rip + "/b/webchain"
+			}
+		}
+		peerHost := snap.Hostname
+		if peerHost == "" {
+			peerHost = snap.NodeID
+		}
+		h.mu.Lock()
+		h.activeNodes[snap.NodeID] = PeerNodeInfo{
+			NodeID:       snap.NodeID,
+			Hostname:     peerHost,
+			LanURL:       peerURL,
+			LastSeenMs:   time.Now().UnixMilli(),
+			LastSeenText: "ออนไลน์",
+			PostsCount:   int64(len(snap.Posts)),
+			UsersCount:   int64(len(snap.Users)),
+		}
+		if peerURL != "" && !h.isOwnURL(peerURL) {
+			found := false
+			for _, kp := range h.cfg.KnownPeers {
+				if kp.NodeID == snap.NodeID || strings.EqualFold(strings.TrimRight(kp.LanURL, "/"), peerURL) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				h.cfg.KnownPeers = append(h.cfg.KnownPeers, PeerNodeInfo{
+					NodeID:   snap.NodeID,
+					Hostname: peerHost,
+					LanURL:   peerURL,
+				})
+			}
+		}
+		h.lastSyncAt = time.Now().Format("15:04:05")
+		h.lastSyncStatus = "ซิงก์สำเร็จ"
+		h.syncSuccess++
+		h.mu.Unlock()
+	}
+
 	return c.JSON(fiber.Map{"success": true, "merged": merged})
 }
 

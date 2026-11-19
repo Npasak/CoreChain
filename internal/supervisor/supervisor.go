@@ -511,6 +511,8 @@ func (s *Supervisor) ProxyToBlock(c *fiber.Ctx) error {
 		req.Header.Add(key, string(v))
 	})
 	req.Header.Set("X-Forwarded-Prefix", "/b/"+blockID)
+	req.Header.Set("X-Real-IP", c.IP())
+	req.Header.Set("X-Forwarded-For", c.IP())
 	s.authSvc.InjectGatewayHeaders(c, blockID, req)
 
 	resp, err := s.httpClient.Do(req)
