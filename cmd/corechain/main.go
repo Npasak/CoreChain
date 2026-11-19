@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime"
@@ -87,6 +86,7 @@ func main() {
 
 	// Boot all installed .Blz blocks as isolated multi-core workers
 	sup.BootAll()
+	meshSvc.StartLANDiscovery()
 	bgUpdater.Start()
 
 	app := fiber.New(fiber.Config{
@@ -282,7 +282,7 @@ func main() {
 	if cfg.AutoOpenBrowser {
 		go func() {
 			time.Sleep(700 * time.Millisecond)
-			openBrowser(localURL)
+			openAppWindow(localURL)
 		}()
 	}
 
@@ -295,17 +295,4 @@ func main() {
 	log.Println("Shutting down CoreChain and all block workers...")
 	sup.ShutdownAll()
 	_ = app.Shutdown()
-}
-
-func openBrowser(url string) {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
-	case "darwin":
-		cmd = exec.Command("open", url)
-	default:
-		cmd = exec.Command("xdg-open", url)
-	}
-	_ = cmd.Start()
 }

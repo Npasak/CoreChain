@@ -8,7 +8,9 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -232,15 +234,22 @@ func (h *SyncHandler) TriggerSync() {
 func (h *SyncHandler) syncWithPeers() {
 	h.touchSelf()
 	h.pollGASHub()
+	h.discoverPeersFromCoreChainAndLearnChain()
 
 	h.mu.Lock()
 	peers := append([]PeerNodeInfo{}, h.cfg.KnownPeers...)
 	prefIP := strings.TrimSpace(h.cfg.PreferredMasterIP)
 	h.mu.Unlock()
 
-	if prefIP != "" && !strings.HasPrefix(prefIP, "http") {
-		prefIP = "http://" + prefIP + ":8889"
-		peers = append(peers, PeerNodeInfo{NodeID: "preferred", LanURL: prefIP})
+	if prefIP != "" {
+		if strings.HasPrefix(prefIP, "http") {
+			peers = append(peers, PeerNodeInfo{NodeID: "preferred", LanURL: prefIP})
+		} else {
+			peers = append(peers,
+				PeerNodeInfo{NodeID: "preferred-cc", LanURL: "http://" + prefIP + "/b/webchain"},
+				PeerNodeInfo{NodeID: "preferred-standalone", LanURL: "http://" + prefIP + ":8889"},
+			)
+		}
 	}
 
 	client := &http.Client{
@@ -307,6 +316,77 @@ func (h *SyncHandler) syncWithPeers() {
 		h.lastSyncStatus = "โหมดเดี่ยว (ยังไม่มี Peer)"
 	}
 	h.mu.Unlock()
+}
+
+// discoverPeersFromCoreChainAndLearnChain pulls peer IPs from CoreChain's UDP LAN Mesh
+// and LearnChain's sync config so WebChain discovers peers automatically without manual setup.
+func (h *SyncHandler) discoverPeersFromCoreChainAndLearnChain() {
+	addCandidate := func(nodeID, hostname, rawURL string) {
+		rawURL = strings.TrimRight(strings.TrimSpace(rawURL), "/")
+		if rawURL == "" || h.isOwnURL(rawURL) {
+			return
+		}
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		for _, kp := range h.cfg.KnownPeers {
+			if strings.EqualFold(strings.TrimRight(kp.LanURL, "/"), rawURL) {
+				return
+			}
+		}
+		h.cfg.KnownPeers = append(h.cfg.KnownPeers, PeerNodeInfo{
+			NodeID:   nodeID,
+			Hostname: hostname,
+			LanURL:   rawURL,
+		})
+	}
+
+	// 1. Ask CoreChain Mesh (/api/sync/status)
+	if busURL := strings.TrimSpace(os.Getenv("CORECHAIN_BUS_URL")); busURL != "" {
+		c := &http.Client{Timeout: 3 * time.Second}
+		if resp, err := c.Get(strings.TrimRight(busURL, "/") + "/api/sync/status"); err == nil {
+			var res struct {
+				Peers []struct {
+					NodeID   string `json:"node_id"`
+					Hostname string `json:"hostname"`
+					LanURL   string `json:"lan_url"`
+					IsSelf   bool   `json:"is_self"`
+				} `json:"peers"`
+			}
+			if json.NewDecoder(resp.Body).Decode(&res) == nil {
+				for _, p := range res.Peers {
+					if !p.IsSelf && p.LanURL != "" {
+						addCandidate(p.NodeID, p.Hostname, strings.TrimRight(p.LanURL, "/")+"/b/webchain")
+					}
+				}
+			}
+			_ = resp.Body.Close()
+		}
+	}
+
+	// 2. Check sibling data/learnchain.db.sync.json for known LAN peer IPs
+	if config.AppConfig != nil && config.AppConfig.DBPath != "" {
+		learnSyncPath := filepath.Join(filepath.Dir(config.AppConfig.DBPath), "learnchain.db.sync.json")
+		if raw, err := os.ReadFile(learnSyncPath); err == nil {
+			var lcfg struct {
+				KnownPeers []struct {
+					NodeID   string `json:"node_id"`
+					Hostname string `json:"hostname"`
+					LanURL   string `json:"lan_url"`
+				} `json:"known_peers"`
+			}
+			if json.Unmarshal(raw, &lcfg) == nil {
+				for _, kp := range lcfg.KnownPeers {
+					u, err := url.Parse(kp.LanURL)
+					if err != nil || u.Hostname() == "" {
+						continue
+					}
+					host := u.Hostname()
+					addCandidate("wc-cc-"+host, kp.Hostname, "http://"+host+"/b/webchain")
+					addCandidate("wc-st-"+host, kp.Hostname, "http://"+host+":8889")
+				}
+			}
+		}
+	}
 }
 
 func (h *SyncHandler) pollGASHub() {

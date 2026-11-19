@@ -63,6 +63,87 @@ func NewMeshService(cfg *config.Config, db *gorm.DB, sup *supervisor.Supervisor)
 	}
 }
 
+// StartLANDiscovery runs UDP broadcast auto-discovery (port 49199) so CoreChain nodes on the same LAN find each other automatically.
+func (m *MeshService) StartLANDiscovery() {
+	go m.listenUDPBeacon()
+	go m.broadcastUDPBeaconLoop()
+}
+
+func (m *MeshService) listenUDPBeacon() {
+	addr, err := net.ResolveUDPAddr("udp4", ":49199")
+	if err != nil {
+		return
+	}
+	conn, err := net.ListenUDP("udp4", addr)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	buf := make([]byte, 2048)
+	for {
+		n, _, err := conn.ReadFromUDP(buf)
+		if err != nil || n == 0 {
+			continue
+		}
+		var p PeerInfo
+		if json.Unmarshal(buf[:n], &p) != nil || p.NodeID == "" || p.NodeID == m.nodeID || p.LanURL == "" {
+			continue
+		}
+		p.LastSeenMs = time.Now().UnixMilli()
+		p.IsSelf = false
+		m.mu.Lock()
+		m.peers[p.NodeID] = p
+		m.mu.Unlock()
+	}
+}
+
+func (m *MeshService) broadcastUDPBeaconLoop() {
+	bcastAddr, err := net.ResolveUDPAddr("udp4", "255.255.255.255:49199")
+	if err != nil {
+		return
+	}
+	conn, err := net.DialUDP("udp4", nil, bcastAddr)
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	sendOnce := func() {
+		lanURLs := m.GetLanURLs()
+		primaryURL := "http://localhost:" + m.cfg.Port
+		if len(lanURLs) > 0 {
+			primaryURL = lanURLs[0]
+		}
+		blocks := m.sup.ListBlocks()
+		blockIDs := make([]string, 0, len(blocks))
+		for _, b := range blocks {
+			if id, ok := b["id"].(string); ok {
+				blockIDs = append(blockIDs, id)
+			}
+		}
+		beacon := PeerInfo{
+			NodeID:      m.nodeID,
+			Hostname:    m.hostname,
+			LanURL:      primaryURL,
+			LastSeenMs:  time.Now().UnixMilli(),
+			Blocks:      blockIDs,
+			CoreVersion: config.Version,
+		}
+		if raw, err := json.Marshal(beacon); err == nil {
+			_, _ = conn.Write(raw)
+		}
+	}
+
+	time.Sleep(2 * time.Second)
+	sendOnce()
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		sendOnce()
+	}
+}
+
 func (m *MeshService) GetLanURLs() []string {
 	var urls []string
 	ifaces, err := net.Interfaces()

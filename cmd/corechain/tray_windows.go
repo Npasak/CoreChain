@@ -3,7 +3,6 @@
 package main
 
 import (
-	"os/exec"
 	"runtime"
 	"strings"
 	"syscall"
@@ -215,7 +214,7 @@ func runSystemTray(url string, onCheckUpdate func(), onQuit func()) {
 	wndProc := syscall.NewCallback(func(hwnd uintptr, uMsg uint32, wParam, lParam uintptr) uintptr {
 		if uMsg == wmTrayIcon {
 			if lParam == wmLButtonDbl {
-				_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", baseURL+"/").Start()
+				openAppWindow(baseURL + "/")
 			} else if lParam == wmRButtonUp {
 				menu, _, _ := procCreatePopupMenu.Call()
 				addItem := func(id uintptr, text string) {
@@ -240,13 +239,13 @@ func runSystemTray(url string, onCheckUpdate func(), onQuit func()) {
 
 				switch cmdID {
 				case cmdOpen:
-					_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", baseURL+"/").Start()
+					openAppWindow(baseURL + "/")
 				case cmdWebChain:
-					_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", baseURL+"/b/webchain/").Start()
+					openAppWindow(baseURL + "/b/webchain/")
 				case cmdLearn:
-					_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", baseURL+"/b/learnchain/").Start()
+					openAppWindow(baseURL + "/b/learnchain/")
 				case cmdDocChain:
-					_ = exec.Command("rundll32", "url.dll,FileProtocolHandler", baseURL+"/b/docchain/").Start()
+					openAppWindow(baseURL + "/b/docchain/")
 				case cmdUpdate:
 					if onCheckUpdate != nil {
 						onCheckUpdate()

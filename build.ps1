@@ -22,7 +22,11 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Remove-Item Env:GOARCH -ErrorAction SilentlyContinue
 Remove-Item Env:GOOS -ErrorAction SilentlyContinue
-Copy-Item -Force "CoreChain-win-arm.exe" "CoreChain.exe"
+try {
+    Copy-Item -Force "CoreChain-win-arm.exe" "CoreChain.exe" -ErrorAction Stop
+} catch {
+    Write-Host "Note: CoreChain.exe is currently running; updated CoreChain-win-arm.exe instead." -ForegroundColor DarkYellow
+}
 
 Write-Host "[3/5] Building & packing webchain.Blz..." -ForegroundColor Yellow
 $webStage = "_build_tmp\webchain"
