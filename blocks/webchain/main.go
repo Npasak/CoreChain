@@ -35,7 +35,7 @@ func main() {
 ======================================================
   WebChain: Internal Ward Communication Hub
   Special Nursing 2 (หอสงฆ์, สว11, สว12)
-  Special Nursing 3 (8A, 8B, 9A, 9B, 9C)
+  Special Nursing 3 (8B, 8C, 9A, 9B, 9C)
   Version: %-12s Built: %s
 ======================================================
 `, version.Version, version.BuildDate)
@@ -137,6 +137,7 @@ func main() {
 			return c.Status(404).SendString("index.html not found")
 		}
 		c.Set("Content-Type", "text/html; charset=utf-8")
+		c.Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		return c.Send(data)
 	}
 
@@ -144,7 +145,10 @@ func main() {
 	app.Get("/special-2", serveIndex)
 	app.Get("/special-3", serveIndex)
 
-	app.Use("/", filesystem.New(filesystem.Config{
+	app.Use("/", func(c *fiber.Ctx) error {
+		c.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		return c.Next()
+	}, filesystem.New(filesystem.Config{
 		Root:   http.FS(distFS),
 		Browse: false,
 	}))

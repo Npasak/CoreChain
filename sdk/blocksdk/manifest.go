@@ -20,6 +20,7 @@ type Manifest struct {
 	Name           string            `json:"name"`
 	Description    string            `json:"description"`
 	Version        string            `json:"version"`
+	MinCoreVersion string            `json:"min_core_version,omitempty"`
 	Icon           string            `json:"icon"`
 	Color          string            `json:"color"`
 	Entrypoint     string            `json:"entrypoint"` // e.g. "block.exe" on Windows, "block" on Unix
@@ -28,6 +29,7 @@ type Manifest struct {
 	Connectors     []ConnectorSpec   `json:"connectors,omitempty"`
 	SubscribedTopics []string        `json:"subscribed_topics,omitempty"`
 	DefaultEnabled bool              `json:"default_enabled"`
+	LocalOnly      bool              `json:"local_only,omitempty"`
 	Order          int               `json:"order"`
 	Metadata       map[string]string `json:"metadata,omitempty"`
 }

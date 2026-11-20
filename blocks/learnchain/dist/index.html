@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>LearnChain - ระบบการเรียนรู้และวุฒิบัตรบล็อกเชน (Soulbound Token)</title>
+  <title>LearnChain — Learn. Grow. Certify.</title>
   <base href="/b/learnchain/">
   <script>
     (function(){
       var origFetch = window.fetch;
+      window.coreFetch = origFetch;
       window.fetch = function(input, init) {
         if (typeof input === 'string' && input.startsWith('/api/')) {
           input = '/b/learnchain' + input;
@@ -16,7 +17,8 @@
       };
     })();
   </script>
-  <link rel="icon" type="image/svg+xml" href="logo.svg">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/svg+xml" href="/corechain-icon.svg">
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -42,26 +44,32 @@
       transition: transform 0.38s cubic-bezier(0.34,1.56,0.64,1), opacity 0.22s ease;
     }
     .cc-blade.active { background:var(--primary); color:#fff; border-color:var(--primary); }
-    #ccSwissDock.open .cc-blade { opacity:1; pointer-events:auto; }
-    #ccSwissDock.open .cc-b1 { transform: translateY(-50%) rotate(76deg) translateX(-26px) scale(1); transition-delay:0ms; }
-    #ccSwissDock.open .cc-b2 { transform: translateY(-50%) rotate(52deg) translateX(-26px) scale(1); transition-delay:30ms; }
-    #ccSwissDock.open .cc-b3 { transform: translateY(-50%) rotate(26deg) translateX(-26px) scale(1); transition-delay:60ms; }
-    #ccSwissDock.open .cc-b4 { transform: translateY(-50%) rotate(0deg) translateX(-26px) scale(1); transition-delay:90ms; }
+    #ccSwissDock.open .cc-blade,
+    #ccSwissDock:hover .cc-blade { opacity:1; pointer-events:auto; }
+    #ccSwissDock.open .cc-b1, #ccSwissDock:hover .cc-b1 { transform: translateY(-50%) rotate(76deg) translateX(-26px) scale(1); transition-delay:0ms; }
+    #ccSwissDock.open .cc-b2, #ccSwissDock:hover .cc-b2 { transform: translateY(-50%) rotate(52deg) translateX(-26px) scale(1); transition-delay:30ms; }
+    #ccSwissDock.open .cc-b3, #ccSwissDock:hover .cc-b3 { transform: translateY(-50%) rotate(26deg) translateX(-26px) scale(1); transition-delay:60ms; }
+    #ccSwissDock.open .cc-b4, #ccSwissDock:hover .cc-b4 { transform: translateY(-50%) rotate(0deg) translateX(-26px) scale(1); transition-delay:90ms; }
+    #ccSwissDock .cc-b1:hover { transform: translateY(-50%) rotate(76deg) translateX(-32px) scale(1.09); border-color:var(--primary); box-shadow:0 10px 26px rgba(15,23,42,0.26); }
+    #ccSwissDock .cc-b2:hover { transform: translateY(-50%) rotate(52deg) translateX(-32px) scale(1.09); border-color:var(--primary); box-shadow:0 10px 26px rgba(15,23,42,0.26); }
+    #ccSwissDock .cc-b3:hover { transform: translateY(-50%) rotate(26deg) translateX(-32px) scale(1.09); border-color:var(--primary); box-shadow:0 10px 26px rgba(15,23,42,0.26); }
+    #ccSwissDock .cc-b4:hover { transform: translateY(-50%) rotate(0deg) translateX(-32px) scale(1.09); border-color:var(--primary); box-shadow:0 10px 26px rgba(15,23,42,0.26); }
     #ccSwissBtn {
       position:relative; z-index:2; width:42px; height:42px;
       background:var(--card, var(--surface)); color:var(--primary); border:1.5px solid var(--border);
       border-radius:999px; font-size:16px; font-weight:800; cursor:pointer;
       display:flex; align-items:center; justify-content:center;
-      box-shadow:0 4px 14px rgba(15,23,42,0.18); transition: transform 0.25s ease, background 0.2s ease;
+      box-shadow:0 4px 14px rgba(15,23,42,0.18); transition: transform 0.25s ease, background 0.2s ease, color 0.2s ease;
     }
-    #ccSwissDock.open #ccSwissBtn { background:var(--primary); color:#fff; transform: rotate(45deg) scale(1.06); }
+    #ccSwissDock.open #ccSwissBtn,
+    #ccSwissDock:hover #ccSwissBtn { background:var(--primary); color:#fff; transform: rotate(45deg) scale(1.08); }
   </style>
   <div id="ccSwissDock">
-    <a href="/" class="cc-blade cc-b1">🏠 CoreChain</a>
+    <a href="/b/learnchain/" class="cc-blade cc-b1 active">🎓 LearnChain</a>
     <a href="/b/webchain/" class="cc-blade cc-b2">🏥 WebChain</a>
-    <a href="/b/learnchain/" class="cc-blade cc-b3 active">🎓 LearnChain</a>
-    <a href="/b/docchain/" class="cc-blade cc-b4">📄 DocChain</a>
-    <button id="ccSwissBtn" type="button" onclick="document.getElementById('ccSwissDock').classList.toggle('open')" title="คลี่เมนู CoreChain">⛓️</button>
+    <a href="/b/docchain/" class="cc-blade cc-b3">📄 DocChain</a>
+    <a href="/?hub=1" class="cc-blade cc-b4">🏠 CoreChain HUB</a>
+    <button id="ccSwissBtn" type="button" onclick="document.getElementById('ccSwissDock').classList.toggle('open')" title="คลี่เมนู CoreChain HUB">⛓️</button>
   </div>
 
   <!-- ============================================================
@@ -417,6 +425,14 @@
             <span class="floating-menu-icon">🏷️</span>
           </button>
           <button type="button" class="floating-menu-toggle" onclick="event.stopPropagation();document.getElementById('floatingVersionWrap').classList.add('collapsed');" title="ยุบปุ่มเวอร์ชัน">−</button>
+        </div>
+
+        <div id="floatingQRWrap" class="floating-menu-wrap">
+          <button type="button" class="floating-menu-main" onclick="var w=document.getElementById('floatingQRWrap');if(w.classList.contains('collapsed')){w.classList.remove('collapsed');}else{openQuickQRModal();}" title="สแกน QR Code เปิดบนมือถือ">
+            <span class="floating-menu-label">สแกน QR</span>
+            <span class="floating-menu-icon">📱</span>
+          </button>
+          <button type="button" class="floating-menu-toggle" onclick="event.stopPropagation();document.getElementById('floatingQRWrap').classList.add('collapsed');" title="ยุบปุ่ม QR">−</button>
         </div>
 
         <div id="floatingMenuWrap" class="floating-menu-wrap collapsed">
@@ -1806,6 +1822,62 @@
       </div>
     </div>
   </div>
+
+  <!-- ===== QUICK QR MODAL (Wi-Fi + 5G Tunnel) ===== -->
+  <div id="lcQuickQRModal" class="modal-bg hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+    <div class="modal-box" style="max-width:400px;width:92%;text-align:center;">
+      <div class="modal-hdr">
+        <div class="modal-hdr-left"><h3 class="modal-title">📱 สแกน QR Code</h3></div>
+        <button class="modal-close" onclick="document.getElementById('lcQuickQRModal').classList.add('hidden')">✕</button>
+      </div>
+      <div class="modal-body" id="lcQuickQRBody" style="display:flex;flex-direction:column;gap:0.75rem;align-items:center;">กำลังสร้าง QR...</div>
+    </div>
+  </div>
+  <script>
+    async function openQuickQRModal() {
+      const m = document.getElementById('lcQuickQRModal');
+      const body = document.getElementById('lcQuickQRBody');
+      m.classList.remove('hidden');
+      body.innerHTML = 'กำลังสร้าง QR...';
+      let lanUrl = window.location.origin + '/b/learnchain';
+      let tunnelUrl = '';
+      try {
+        const ir = await fetch('/b/learnchain/api/sync/info');
+        const id = await ir.json();
+        if (id && id.primary_lan_url) lanUrl = id.primary_lan_url;
+      } catch {}
+      try {
+        const cf = window.coreFetch || window.fetch;
+        const tr = await cf('/api/tunnel/status');
+        const td = await tr.json();
+        if (td && td.status === 'running' && td.public_url) {
+          tunnelUrl = td.public_url.replace(/\/+$/, '') + '/b/learnchain';
+        }
+      } catch {}
+      const defaultMode = tunnelUrl ? '5g' : 'lan';
+      window._lcQrUrls = { lan: lanUrl, '5g': tunnelUrl || lanUrl, has5g: !!tunnelUrl };
+      renderLcQuickQR(defaultMode);
+    }
+    function renderLcQuickQR(mode) {
+      const body = document.getElementById('lcQuickQRBody');
+      const u = window._lcQrUrls || {};
+      const target = mode === '5g' ? u['5g'] : u.lan;
+      const modeLabel = mode === '5g' ? '📱นอกโรงพยาบาล' : '📶 Wi-Fi หน่วยงาน';
+      const tabsHtml = u.has5g ? `
+        <div style="display:flex;gap:6px;width:100%;justify-content:center;">
+          <button type="button" class="btn btn-sm ${mode==='lan'?'btn-primary':'btn-wallet'}" onclick="renderLcQuickQR('lan')">📶 Wi-Fi หน่วยงาน</button>
+          <button type="button" class="btn btn-sm ${mode==='5g'?'btn-primary':'btn-wallet'}" onclick="renderLcQuickQR('5g')">📱นอกโรงพยาบาล</button>
+        </div>` : '';
+      body.innerHTML = `
+        ${tabsHtml}
+        <div style="font-size:0.85rem;font-weight:700;color:var(--primary);">${modeLabel}</div>
+        <div style="background:#fff;padding:10px;border-radius:12px;border:1px solid var(--border);">
+          <img src="/b/learnchain/api/sync/qr?url=${encodeURIComponent(target)}" style="width:190px;height:190px;display:block;" />
+        </div>
+        <code style="font-size:0.78rem;word-break:break-all;color:var(--muted);">${target}</code>
+      `;
+    }
+  </script>
 
   <!-- ===== UPDATE MODAL (moved badge to .floating-top-right) ===== -->
 

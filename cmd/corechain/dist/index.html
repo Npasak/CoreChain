@@ -3,24 +3,27 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CoreChain — Decentralized Block Launcher</title>
-  <link rel="stylesheet" href="/style.css" />
+  <title>CoreChain HUB — One Core. Infinite Blocks.</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/svg+xml" href="/corechain-icon.svg" />
+  <link rel="stylesheet" href="/style.css?v=1.2.4-hub" />
 </head>
 <body class="theme-sky">
   <header class="topbar">
     <div class="brand">
-      <div class="brand-logo">⛓️</div>
+      <div class="brand-logo"><img src="/corechain-icon.svg" alt="CoreChain HUB" style="width:28px;height:28px;display:block;" /></div>
       <div>
-        <div class="brand-title">CoreChain</div>
-        <div class="brand-sub">Decentralized Block Launcher • Single Server • .Blz Runtime</div>
+        <div class="brand-title">CoreChain HUB</div>
+        <div class="brand-sub">One Core. Infinite Blocks.</div>
       </div>
     </div>
 
     <div class="topbar-actions">
       <div id="nodeBadge" class="pill pill-info">Node: loading...</div>
+      <div id="tunnelBadge" class="pill pill-muted">5G Tunnel: off</div>
       <div id="updaterBadge" class="pill pill-muted">Updater: idle</div>
       <select id="themeSelect" class="theme-select" title="เปลี่ยนธีม">
-        <option value="theme-sky">☀️ Sky</option>
+        <option value="theme-sky">☀️ Minimal</option>
         <option value="theme-pink">🌸 Pink</option>
         <option value="theme-lavender">💜 Lavender</option>
         <option value="theme-mint">🌿 Mint</option>
@@ -32,9 +35,15 @@
 
   <main class="container">
     <section class="hero-card">
-      <div>
-        <h1>ศูนย์รวมแอปพลิเคชันแบบกระจายศูนย์ (Decentralized Blocks)</h1>
-        <p>รันทุก Block บน Server เดียวกันในพื้นหลัง อัปเดตไฟล์ <code>.Blz</code> แบบ Hot-Swap ได้ทันทีโดยไม่ต้องปิด CoreChain และแยกฐานข้อมูล + CPU ต่อ Block อิสระ</p>
+      <div class="hero-copy">
+        <div class="hero-eyebrow">DECENTRALIZED HOSPITAL PLATFORM</div>
+        <h1>CoreChain HUB</h1>
+        <p>ศูนย์กลางรันแอปพลิเคชันแบบแยกอิสระ (<code>.Blz</code>) พร้อมระบบ <strong>Auto Hot-Swap</strong>, <strong>Auto-Rollback</strong> และกระจายอัปเดตผ่าน <strong>LAN Hub Relay</strong> ทั่วโรงพยาบาล</p>
+        <div class="hero-chips">
+          <span class="mini-chip">⚡ Auto Hot-Swap</span>
+          <span class="mini-chip">🛡️ Auto-Rollback</span>
+          <span class="mini-chip">🌐 LAN Hub Relay</span>
+        </div>
       </div>
       <div class="hero-stats">
         <div class="stat-box">
@@ -67,7 +76,9 @@
       <h2>📦 Application Blocks</h2>
       <div class="section-actions">
         <button class="btn btn-secondary" onclick="refreshAll()">🔄 รีเฟรชสถานะ</button>
+        <button id="btnManageUsers" class="btn btn-secondary hidden" onclick="openUsersModal()">👥 จัดการสมาชิก</button>
         <button id="btnCheckUpdate" class="btn btn-secondary hidden" onclick="triggerUpdateCheck()">⬇ เช็กอัปเดต</button>
+        <button id="btnToggleTunnel" class="btn btn-secondary hidden" onclick="toggleTunnel()">🌐 เปิด 5G Tunnel</button>
         <button id="btnBootstrapSync" class="btn btn-secondary hidden" onclick="triggerBootstrapSync()">🚀 Sync เครื่องใหม่</button>
         <button id="btnShowInstall" class="btn btn-primary hidden" onclick="toggleInstallModal(true)">➕ ติดตั้ง / อัปเดต .Blz</button>
       </div>
@@ -136,6 +147,38 @@
     </div>
   </div>
 
-  <script src="/app.js"></script>
+  <!-- Member Management Modal (Manager & therunrock) -->
+  <div id="usersModal" class="modal hidden">
+    <div class="modal-card" style="width:min(760px,95vw);max-height:88vh;overflow-y:auto;">
+      <div class="modal-head">
+        <h3>👥 จัดการสมาชิกและสิทธิ์การใช้งาน</h3>
+        <button class="icon-btn" onclick="toggleUsersModal(false)">✕</button>
+      </div>
+      <form id="createUserForm" onsubmit="submitCreateUser(event)" style="background:var(--surface-2);padding:12px;border-radius:12px;border:1px solid var(--border);margin-bottom:14px;">
+        <div style="font-size:12.5px;font-weight:700;margin-bottom:8px;">➕ เพิ่มสมาชิกใหม่</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">
+          <input type="text" id="newUname" required placeholder="ชื่อผู้ใช้ (username)" style="margin:0;" />
+          <input type="text" id="newDisplay" placeholder="ชื่อ-สกุล" style="margin:0;" />
+          <input type="password" id="newPass" required placeholder="รหัสผ่าน" style="margin:0;" />
+          <select id="newRole" style="padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
+            <option value="user">สมาชิก (User)</option>
+            <option value="manager">ผู้จัดการ (Manager)</option>
+            <option value="admin">Admin</option>
+          </select>
+          <input type="text" id="newWard" placeholder="หอผู้ป่วย/แผนก" style="margin:0;" />
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+          <span id="userFormMsg" class="hint-text" style="margin:0;"></span>
+          <button type="submit" class="btn btn-primary btn-sm">+ เพิ่มสมาชิก</button>
+        </div>
+      </form>
+      <div style="margin-bottom:10px;">
+        <input type="search" id="userSearchInput" placeholder="🔍 ค้นหาชื่อผู้ใช้ / ชื่อ-สกุล / แผนก..." oninput="renderUsersList()" style="margin:0;" />
+      </div>
+      <div id="usersListBox" style="display:flex;flex-direction:column;gap:8px;">กำลังโหลด...</div>
+    </div>
+  </div>
+
+  <script src="/app.js?v=1.2.4-hub2"></script>
 </body>
 </html>

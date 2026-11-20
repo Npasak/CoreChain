@@ -109,11 +109,20 @@ func (h *WardHandler) UpdateWard(c *fiber.Ctx) error {
 }
 
 type RosterMember struct {
-	Name       string `json:"name"`
-	Position   string `json:"position"`
-	Level      string `json:"level"`
-	PhotoData  string `json:"photo_data"`
-	Phone      string `json:"phone,omitempty"`
+	Name         string `json:"name"`
+	Position     string `json:"position"`
+	Level        string `json:"level"`
+	PhotoData    string `json:"photo_data"`
+	PhotoAltData string `json:"photo_alt_data,omitempty"`
+	PhotoPosX    *int    `json:"photo_pos_x,omitempty"`
+	PhotoPosY    *int    `json:"photo_pos_y,omitempty"`
+	PhotoFlip    bool    `json:"photo_flip,omitempty"`
+	PhotoZoom    float64 `json:"photo_zoom,omitempty"`
+	PhotoAltPosX *int    `json:"photo_alt_pos_x,omitempty"`
+	PhotoAltPosY *int    `json:"photo_alt_pos_y,omitempty"`
+	PhotoAltFlip bool    `json:"photo_alt_flip,omitempty"`
+	PhotoAltZoom float64 `json:"photo_alt_zoom,omitempty"`
+	Phone        string `json:"phone,omitempty"`
 	Email      string `json:"email,omitempty"`
 	BirthMonth int    `json:"birth_month"`
 	BirthDay   int    `json:"birth_day"`

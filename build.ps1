@@ -32,8 +32,10 @@ Write-Host "[3/5] Building & packing webchain.Blz..." -ForegroundColor Yellow
 $webStage = "_build_tmp\webchain"
 New-Item -ItemType Directory -Force -Path $webStage | Out-Null
 Copy-Item -Force "blocks\webchain\manifest.json" "$webStage\manifest.json"
+$BuildDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+$webLdFlags = "-H=windowsgui -s -w -X webchain/version.Version=v1.1.0 -X webchain/version.BuildDate=$BuildDate"
 Push-Location blocks\webchain
-go build -ldflags="-s -w" -o "..\..\$webStage\block.exe" .
+go build -ldflags="$webLdFlags" -o "..\..\$webStage\block.exe" .
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Pop-Location
 go run ./cmd/blzpack $webStage "packages\webchain.Blz"
@@ -50,12 +52,20 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Pop-Location
 go run ./cmd/blzpack $learnStage "packages\learnchain.Blz"
 
-Write-Host "[5/5] Building & packing docchain.Blz..." -ForegroundColor Yellow
+Write-Host "[5/6] Building & packing docchain.Blz..." -ForegroundColor Yellow
 $docStage = "_build_tmp\docchain"
 New-Item -ItemType Directory -Force -Path $docStage | Out-Null
 Copy-Item -Force "blocks\docchain\manifest.json" "$docStage\manifest.json"
 go build -ldflags="-s -w" -o "$docStage\block.exe" ./blocks/docchain
 go run ./cmd/blzpack $docStage "packages\docchain.Blz"
+
+Write-Host "[6/6] Building & packing ai.Blz..." -ForegroundColor Yellow
+$aiStage = "_build_tmp\ai"
+New-Item -ItemType Directory -Force -Path $aiStage | Out-Null
+Copy-Item -Force "blocks\ai\manifest.json" "$aiStage\manifest.json"
+go build -ldflags="-H=windowsgui -s -w" -o "$aiStage\block.exe" ./blocks/ai
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+go run ./cmd/blzpack $aiStage "packages\ai.Blz"
 
 Remove-Item -Recurse -Force "_build_tmp"
 
@@ -64,6 +74,7 @@ $coreVer = (Select-String -Path "internal\config\config.go" -Pattern 'const Vers
 $webSha = (Get-FileHash "packages\webchain.Blz" -Algorithm SHA256).Hash.ToLower()
 $learnSha = (Get-FileHash "packages\learnchain.Blz" -Algorithm SHA256).Hash.ToLower()
 $docSha = (Get-FileHash "packages\docchain.Blz" -Algorithm SHA256).Hash.ToLower()
+$aiSha = (Get-FileHash "packages\ai.Blz" -Algorithm SHA256).Hash.ToLower()
 $armSha = (Get-FileHash "CoreChain-win-arm.exe" -Algorithm SHA256).Hash.ToLower()
 $x64Sha = (Get-FileHash "CoreChain-win-x64.exe" -Algorithm SHA256).Hash.ToLower()
 
@@ -77,19 +88,22 @@ $manifestObj = @{
     blocks = @(
         @{
             id = "webchain"
-            version = "1.0.0"
+            version = "1.1.0"
+            min_core_version = "1.2.0"
             download_url = "https://github.com/Npasak/CoreChain/raw/main/packages/webchain.Blz"
             sha256 = $webSha
         },
         @{
             id = "learnchain"
             version = "1.3.22"
+            min_core_version = "1.2.0"
             download_url = "https://github.com/Npasak/CoreChain/raw/main/packages/learnchain.Blz"
             sha256 = $learnSha
         },
         @{
             id = "docchain"
             version = "1.0.0"
+            min_core_version = "1.2.0"
             download_url = "https://github.com/Npasak/CoreChain/raw/main/packages/docchain.Blz"
             sha256 = $docSha
         }

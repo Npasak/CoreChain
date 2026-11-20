@@ -3,12 +3,56 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DocChain — แหล่งรวมเอกสารหน่วยงาน</title>
+  <title>DocChain — Store. Find. Trust.</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/svg+xml" href="/corechain-icon.svg" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <style>
+    /* Swiss Army Knife Fan-Out Dock (Bottom-Right Pivot) */
+    #ccSwissDock { position:fixed; bottom:16px; right:16px; z-index:9999; width:42px; height:42px; }
+    .cc-blade {
+      position:absolute; right:21px; top:50%;
+      transform-origin: right center;
+      transform: translateY(-50%) rotate(0deg) scale(0.2);
+      opacity:0; pointer-events:none;
+      padding:7px 14px 7px 12px; border-radius:999px; font-size:12px; font-weight:700;
+      text-decoration:none; white-space:nowrap;
+      background:var(--surface, #ffffff); color:var(--text, #0f172a); border:1.5px solid var(--border, #e2e8f0);
+      box-shadow:0 6px 18px rgba(15,23,42,0.16);
+      transition: transform 0.38s cubic-bezier(0.34,1.56,0.64,1), opacity 0.22s ease;
+    }
+    .cc-blade.active { background:var(--primary, #0284c7); color:#fff; border-color:var(--primary, #0284c7); }
+    #ccSwissDock.open .cc-blade,
+    #ccSwissDock:hover .cc-blade { opacity:1; pointer-events:auto; }
+    #ccSwissDock.open .cc-b1, #ccSwissDock:hover .cc-b1 { transform: translateY(-50%) rotate(76deg) translateX(-26px) scale(1); transition-delay:0ms; }
+    #ccSwissDock.open .cc-b2, #ccSwissDock:hover .cc-b2 { transform: translateY(-50%) rotate(52deg) translateX(-26px) scale(1); transition-delay:30ms; }
+    #ccSwissDock.open .cc-b3, #ccSwissDock:hover .cc-b3 { transform: translateY(-50%) rotate(26deg) translateX(-26px) scale(1); transition-delay:60ms; }
+    #ccSwissDock.open .cc-b4, #ccSwissDock:hover .cc-b4 { transform: translateY(-50%) rotate(0deg) translateX(-26px) scale(1); transition-delay:90ms; }
+    #ccSwissDock .cc-b1:hover { transform: translateY(-50%) rotate(76deg) translateX(-32px) scale(1.09); border-color:var(--primary, #0284c7); box-shadow:0 10px 26px rgba(15,23,42,0.26); }
+    #ccSwissDock .cc-b2:hover { transform: translateY(-50%) rotate(52deg) translateX(-32px) scale(1.09); border-color:var(--primary, #0284c7); box-shadow:0 10px 26px rgba(15,23,42,0.26); }
+    #ccSwissDock .cc-b3:hover { transform: translateY(-50%) rotate(26deg) translateX(-32px) scale(1.09); border-color:var(--primary, #0284c7); box-shadow:0 10px 26px rgba(15,23,42,0.26); }
+    #ccSwissDock .cc-b4:hover { transform: translateY(-50%) rotate(0deg) translateX(-32px) scale(1.09); border-color:var(--primary, #0284c7); box-shadow:0 10px 26px rgba(15,23,42,0.26); }
+    #ccSwissBtn {
+      position:relative; z-index:2; width:42px; height:42px;
+      background:var(--surface, #ffffff); color:var(--primary, #0284c7); border:1.5px solid var(--border, #e2e8f0);
+      border-radius:999px; font-size:16px; font-weight:800; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      box-shadow:0 4px 14px rgba(15,23,42,0.18); transition: transform 0.25s ease, background 0.2s ease, color 0.2s ease;
+    }
+    #ccSwissDock.open #ccSwissBtn,
+    #ccSwissDock:hover #ccSwissBtn { background:var(--primary, #0284c7); color:#fff; transform: rotate(45deg) scale(1.08); }
+  </style>
+  <div id="ccSwissDock">
+    <a href="/b/docchain/" class="cc-blade cc-b1 active">📄 DocChain</a>
+    <a href="/b/webchain/" class="cc-blade cc-b2">🏥 WebChain</a>
+    <a href="/b/learnchain/" class="cc-blade cc-b3">🎓 LearnChain</a>
+    <a href="/?hub=1" class="cc-blade cc-b4">🏠 CoreChain HUB</a>
+    <button id="ccSwissBtn" type="button" onclick="document.getElementById('ccSwissDock').classList.toggle('open')" title="คลี่เมนู CoreChain HUB">⛓️</button>
+  </div>
   <nav class="core-switcher">
-    <a href="/" class="sw-brand">⛓️ CoreChain</a>
+    <a href="/?hub=1" class="sw-brand">⛓️ CoreChain HUB</a>
     <div class="sw-links">
       <a href="/b/webchain/">🏥 WebChain</a>
       <a href="/b/learnchain/">🎓 LearnChain</a>

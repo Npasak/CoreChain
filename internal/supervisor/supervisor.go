@@ -68,6 +68,7 @@ func (s *Supervisor) BootAll() {
 	s.installPackagesFromDir()
 	s.startInstalledBlocks()
 	go s.healthLoop()
+	go s.watchPackagesLoop()
 }
 
 func (s *Supervisor) installPackagesFromDir() {
@@ -115,6 +116,12 @@ func (s *Supervisor) upsertInstalledRecord(m *blocksdk.Manifest, hash string) {
 	var rec models.InstalledBlock
 	err := s.db.Where("id = ?", m.ID).First(&rec).Error
 	if err != nil {
+		initMode := "active"
+		if m.LocalOnly {
+			initMode = "local"
+		} else if !m.DefaultEnabled {
+			initMode = "stop"
+		}
 		rec = models.InstalledBlock{
 			ID:          m.ID,
 			Name:        m.Name,
@@ -122,7 +129,9 @@ func (s *Supervisor) upsertInstalledRecord(m *blocksdk.Manifest, hash string) {
 			Version:     m.Version,
 			Icon:        m.Icon,
 			Color:       m.Color,
-			Enabled:     true,
+			Enabled:     m.DefaultEnabled,
+			LocalOnly:   m.LocalOnly,
+			DistMode:    initMode,
 			CPUThreads:  m.CPUThreads,
 			SortOrder:   m.Order,
 			PackageHash: hash,
@@ -131,7 +140,7 @@ func (s *Supervisor) upsertInstalledRecord(m *blocksdk.Manifest, hash string) {
 		}
 		s.db.Create(&rec)
 	} else {
-		s.db.Model(&rec).Updates(map[string]any{
+		updates := map[string]any{
 			"name":         m.Name,
 			"description":  m.Description,
 			"version":      m.Version,
@@ -139,7 +148,16 @@ func (s *Supervisor) upsertInstalledRecord(m *blocksdk.Manifest, hash string) {
 			"color":        m.Color,
 			"package_hash": hash,
 			"updated_at":   now,
-		})
+		}
+		if m.LocalOnly {
+			updates["local_only"] = true
+			if rec.DistMode == "" || rec.DistMode == "active" {
+				updates["dist_mode"] = "local"
+			}
+		} else if rec.DistMode == "" {
+			updates["dist_mode"] = "active"
+		}
+		s.db.Model(&rec).Updates(updates)
 	}
 }
 
@@ -336,6 +354,9 @@ func (s *Supervisor) HotSwapBlock(blzPath string) (*blocksdk.Manifest, error) {
 	s.StopBlock(manifest.ID)
 	time.Sleep(300 * time.Millisecond)
 
+	var prevRec models.InstalledBlock
+	hasPrev := s.db.Where("id = ?", manifest.ID).First(&prevRec).Error == nil
+
 	targetDir := filepath.Join(s.cfg.BlocksDir, manifest.ID)
 	oldDir := targetDir + ".old"
 	_ = os.RemoveAll(oldDir)
@@ -349,12 +370,40 @@ func (s *Supervisor) HotSwapBlock(blzPath string) (*blocksdk.Manifest, error) {
 		}
 		return nil, err
 	}
-	_ = os.RemoveAll(oldDir)
 
 	s.upsertInstalledRecord(manifest, hash)
-	if err := s.StartBlock(manifest.ID); err != nil {
-		return nil, err
+	shouldStart := manifest.DefaultEnabled
+	if hasPrev {
+		shouldStart = prevRec.Enabled
 	}
+	if !shouldStart {
+		s.mu.Lock()
+		s.workers[manifest.ID] = &WorkerState{
+			Manifest:    *manifest,
+			Status:      "stopped",
+			PackageHash: hash,
+			CPUThreads:  manifest.CPUThreads,
+		}
+		s.mu.Unlock()
+		_ = os.RemoveAll(oldDir)
+		log.Printf("[Supervisor] Hot-swapped block '%s' v%s (kept stopped by default)", manifest.ID, manifest.Version)
+		return manifest, nil
+	}
+	if err := s.StartBlock(manifest.ID); err != nil {
+		log.Printf("[Supervisor] Hot-swap failed to start '%s': %v — rolling back!", manifest.ID, err)
+		s.StopBlock(manifest.ID)
+		time.Sleep(250 * time.Millisecond)
+		if dirExists(oldDir) {
+			_ = os.RemoveAll(targetDir)
+			_ = os.Rename(oldDir, targetDir)
+		}
+		if hasPrev {
+			_ = s.db.Save(&prevRec).Error
+			_ = s.StartBlock(manifest.ID)
+		}
+		return nil, fmt.Errorf("hot-swap rolled back: %w", err)
+	}
+	_ = os.RemoveAll(oldDir)
 	log.Printf("[Supervisor] Hot-swapped block '%s' to v%s without restarting CoreChain!", manifest.ID, manifest.Version)
 	return manifest, nil
 }
@@ -395,6 +444,68 @@ func (s *Supervisor) healthLoop() {
 			log.Printf("[Supervisor] Auto-restarting crashed block: %s", id)
 			_ = s.StartBlock(id)
 		}
+		s.cleanupRemovedBlocks()
+	}
+}
+
+// watchPackagesLoop watches packages/*.Blz for changes and hot-swaps only the modified block without restarting CoreChain.
+func (s *Supervisor) watchPackagesLoop() {
+	type pkgMeta struct {
+		size    int64
+		modNano int64
+	}
+	knownMeta := make(map[string]pkgMeta)
+	knownHashes := make(map[string]string)
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		s.mu.RLock()
+		shutting := s.shutting
+		s.mu.RUnlock()
+		if shutting {
+			return
+		}
+
+		entries, err := os.ReadDir(s.cfg.PackagesDir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() || !strings.EqualFold(filepath.Ext(e.Name()), blocksdk.PackageExtension) {
+				continue
+			}
+			info, err := e.Info()
+			if err != nil || info.Size() == 0 || time.Since(info.ModTime()) < 1500*time.Millisecond {
+				continue
+			}
+			meta := pkgMeta{size: info.Size(), modNano: info.ModTime().UnixNano()}
+			if prev, ok := knownMeta[e.Name()]; ok && prev == meta {
+				continue
+			}
+
+			pkgPath := filepath.Join(s.cfg.PackagesDir, e.Name())
+			hash, err := blocksdk.FileSHA256(pkgPath)
+			if err != nil || hash == "" {
+				continue
+			}
+			knownMeta[e.Name()] = meta
+			if knownHashes[e.Name()] == hash {
+				continue
+			}
+
+			var rec models.InstalledBlock
+			if err := s.db.Where("package_hash = ?", hash).First(&rec).Error; err == nil {
+				knownHashes[e.Name()] = hash
+				continue
+			}
+
+			log.Printf("[Supervisor] Detected updated .Blz package (%s), hot-swapping...", e.Name())
+			if _, err := s.HotSwapBlock(pkgPath); err != nil {
+				log.Printf("[Supervisor] Auto hot-swap skipped for %s: %v", e.Name(), err)
+				continue
+			}
+			knownHashes[e.Name()] = hash
+		}
 	}
 }
 
@@ -406,6 +517,27 @@ func (s *Supervisor) ListBlocks() []map[string]any {
 		list = append(list, st)
 	}
 	s.mu.RUnlock()
+
+	var dbRecords []models.InstalledBlock
+	_ = s.db.Find(&dbRecords).Error
+	localOnlyMap := make(map[string]bool, len(dbRecords))
+	distModeMap := make(map[string]string, len(dbRecords))
+	removeAtMap := make(map[string]*time.Time, len(dbRecords))
+	for _, r := range dbRecords {
+		localOnlyMap[r.ID] = r.LocalOnly
+		mode := r.DistMode
+		if mode == "" {
+			if r.LocalOnly {
+				mode = "local"
+			} else if !r.Enabled {
+				mode = "stop"
+			} else {
+				mode = "active"
+			}
+		}
+		distModeMap[r.ID] = mode
+		removeAtMap[r.ID] = r.RemoveAt
+	}
 
 	out := make([]map[string]any, 0, len(list))
 	for _, st := range list {
@@ -422,6 +554,9 @@ func (s *Supervisor) ListBlocks() []map[string]any {
 			"pid":          st.PID,
 			"cpu_threads":  st.CPUThreads,
 			"package_hash": st.PackageHash,
+			"local_only":   localOnlyMap[st.Manifest.ID],
+			"dist_mode":    distModeMap[st.Manifest.ID],
+			"remove_at":    removeAtMap[st.Manifest.ID],
 			"url":          "/b/" + st.Manifest.ID + "/",
 		}
 		if st.Status == "running" && st.Port > 0 {
@@ -432,6 +567,86 @@ func (s *Supervisor) ListBlocks() []map[string]any {
 		out = append(out, item)
 	}
 	return out
+}
+
+// SetLocalOnly marks a block as restricted to this machine (excluded from LAN Mesh manifest relay).
+func (s *Supervisor) SetLocalOnly(blockID string, localOnly bool) error {
+	mode := "active"
+	if localOnly {
+		mode = "local"
+	}
+	return s.db.Model(&models.InstalledBlock{}).Where("id = ?", blockID).Updates(map[string]any{
+		"local_only": localOnly,
+		"dist_mode":  mode,
+	}).Error
+}
+
+// SetBlockMode applies one of the 5 distribution/lifecycle modes: local, active, active-unpublic, stop, remove.
+func (s *Supervisor) SetBlockMode(blockID, mode string) error {
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	var rec models.InstalledBlock
+	if err := s.db.Where("id = ?", blockID).First(&rec).Error; err != nil {
+		return err
+	}
+
+	updates := map[string]any{
+		"dist_mode":  mode,
+		"updated_at": time.Now(),
+	}
+	switch mode {
+	case "local":
+		updates["enabled"] = true
+		updates["local_only"] = true
+		updates["remove_at"] = nil
+		s.db.Model(&rec).Updates(updates)
+		return s.StartBlock(blockID)
+	case "active":
+		updates["enabled"] = true
+		updates["local_only"] = false
+		updates["remove_at"] = nil
+		s.db.Model(&rec).Updates(updates)
+		return s.StartBlock(blockID)
+	case "active-unpublic":
+		updates["enabled"] = true
+		updates["local_only"] = true
+		updates["remove_at"] = nil
+		s.db.Model(&rec).Updates(updates)
+		return s.StartBlock(blockID)
+	case "stop":
+		updates["enabled"] = false
+		updates["local_only"] = false
+		updates["remove_at"] = nil
+		s.db.Model(&rec).Updates(updates)
+		s.StopBlock(blockID)
+		return nil
+	case "remove":
+		rmTime := time.Now().Add(24 * time.Hour)
+		updates["enabled"] = false
+		updates["local_only"] = false
+		updates["remove_at"] = &rmTime
+		s.db.Model(&rec).Updates(updates)
+		s.StopBlock(blockID)
+		return nil
+	default:
+		return fmt.Errorf("invalid mode: %s", mode)
+	}
+}
+
+func (s *Supervisor) cleanupRemovedBlocks() {
+	var due []models.InstalledBlock
+	if err := s.db.Where("dist_mode = ? AND remove_at IS NOT NULL AND remove_at <= ?", "remove", time.Now()).Find(&due).Error; err != nil {
+		return
+	}
+	for _, rec := range due {
+		log.Printf("[Supervisor] 24h Remove timer elapsed for '%s', removing block files...", rec.ID)
+		s.StopBlock(rec.ID)
+		_ = os.RemoveAll(filepath.Join(s.cfg.BlocksDir, rec.ID))
+		_ = os.Remove(filepath.Join(s.cfg.PackagesDir, rec.ID+blocksdk.PackageExtension))
+		s.mu.Lock()
+		delete(s.workers, rec.ID)
+		s.mu.Unlock()
+		s.db.Delete(&rec)
+	}
 }
 
 func (s *Supervisor) fetchBlockStats(port int) (*blocksdk.BlockStats, error) {

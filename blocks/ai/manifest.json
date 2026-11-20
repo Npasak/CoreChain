@@ -1,0 +1,21 @@
+{
+  "id": "ai",
+  "name": "AI NPU",
+  "description": "ผู้ช่วย AI ประมวลผลบน Qualcomm Hexagon NPU (สรุปข่าว, วิเคราะห์เอกสาร, ช่วยออกข้อสอบ)",
+  "version": "1.0.0",
+  "min_core_version": "1.2.0",
+  "icon": "🧠",
+  "color": "#7c3aed",
+  "entrypoint": "block.exe",
+  "cpu_threads": 2,
+  "default_enabled": false,
+  "local_only": true,
+  "order": 4,
+  "capabilities": ["npu", "local-llm", "summarize", "ocr-assist"],
+  "connectors": [
+    { "action": "npu_status", "description": "ตรวจสอบสถานะฮาร์ดแวร์ NPU และ Local LLM" },
+    { "action": "ask", "description": "ส่งคำถามให้ AI บน NPU ประมวลผล" },
+    { "action": "summarize", "description": "สรุปข้อความหรือบทความด้วย AI" }
+  ],
+  "subscribed_topics": []
+}

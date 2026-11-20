@@ -7,6 +7,8 @@ import (
 	"runtime"
 )
 
+var onFreshWindowOpen func()
+
 func openAppWindow(url string) {
 	var cmd *exec.Cmd
 	if runtime.GOOS == "darwin" {
@@ -16,3 +18,5 @@ func openAppWindow(url string) {
 	}
 	_ = cmd.Start()
 }
+
+func closeAppWindows() {}

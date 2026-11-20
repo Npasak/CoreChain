@@ -9,8 +9,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -19,11 +21,17 @@ import (
 	"corechain/internal/supervisor"
 )
 
+type PeerSource interface {
+	GetPeerLanURLs() []string
+}
+
 type BlockManifestEntry struct {
-	ID          string `json:"id"`
-	Version     string `json:"version"`
-	DownloadURL string `json:"download_url"`
-	SHA256      string `json:"sha256"`
+	ID             string `json:"id"`
+	Version        string `json:"version"`
+	DistMode       string `json:"dist_mode,omitempty"`
+	MinCoreVersion string `json:"min_core_version,omitempty"`
+	DownloadURL    string `json:"download_url"`
+	SHA256         string `json:"sha256"`
 }
 
 type RemoteManifest struct {
@@ -39,6 +47,7 @@ type RemoteManifest struct {
 type BackgroundUpdater struct {
 	cfg        *config.Config
 	sup        *supervisor.Supervisor
+	peerSrc    PeerSource
 	httpClient *http.Client
 	mu         sync.RWMutex
 	lastCheck  time.Time
@@ -62,6 +71,10 @@ func NewBackgroundUpdater(cfg *config.Config, sup *supervisor.Supervisor) *Backg
 		lastStatus: "idle",
 		latestCore: config.Version,
 	}
+}
+
+func (u *BackgroundUpdater) SetPeerSource(p PeerSource) {
+	u.peerSrc = p
 }
 
 func (u *BackgroundUpdater) Start() {
@@ -112,7 +125,65 @@ func (u *BackgroundUpdater) setProgress(updating bool, pct int, step, target, st
 	u.mu.Unlock()
 }
 
-// CheckAndApply checks remote manifest and hot-swaps updated .Blz packages in the background with % progress.
+func compareSemver(a, b string) int {
+	pa := strings.Split(strings.TrimPrefix(strings.TrimSpace(a), "v"), ".")
+	pb := strings.Split(strings.TrimPrefix(strings.TrimSpace(b), "v"), ".")
+	for i := 0; i < 3; i++ {
+		var va, vb int
+		if i < len(pa) {
+			va, _ = strconv.Atoi(strings.Split(pa[i], "-")[0])
+		}
+		if i < len(pb) {
+			vb, _ = strconv.Atoi(strings.Split(pb[i], "-")[0])
+		}
+		if va < vb {
+			return -1
+		}
+		if va > vb {
+			return 1
+		}
+	}
+	return 0
+}
+
+func (u *BackgroundUpdater) fetchManifest() (*RemoteManifest, string, error) {
+	var candidates []string
+	if u.cfg.UpdateManifestURL != "" {
+		candidates = append(candidates, u.cfg.UpdateManifestURL)
+	}
+	if u.peerSrc != nil {
+		for _, peerURL := range u.peerSrc.GetPeerLanURLs() {
+			candidates = append(candidates, peerURL+"/api/sync/manifest.json")
+		}
+	}
+	if len(candidates) == 0 {
+		return nil, "", fmt.Errorf("no manifest source configured")
+	}
+
+	var lastErr error
+	for _, url := range candidates {
+		resp, err := u.httpClient.Get(url)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		var rm RemoteManifest
+		decErr := json.NewDecoder(resp.Body).Decode(&rm)
+		resp.Body.Close()
+		if resp.StatusCode != 200 || decErr != nil {
+			if decErr != nil {
+				lastErr = decErr
+			} else {
+				lastErr = fmt.Errorf("HTTP %d from %s", resp.StatusCode, url)
+			}
+			continue
+		}
+		return &rm, url, nil
+	}
+	return nil, "", lastErr
+}
+
+// CheckAndApply checks remote manifest (or LAN peer Hub fallback) and hot-swaps updated .Blz packages.
 func (u *BackgroundUpdater) CheckAndApply() {
 	u.mu.Lock()
 	if u.isUpdating {
@@ -120,30 +191,19 @@ func (u *BackgroundUpdater) CheckAndApply() {
 		return
 	}
 	u.lastCheck = time.Now()
-	if u.cfg.UpdateManifestURL == "" {
-		u.lastStatus = "ready (local .Blz watch mode)"
-		u.mu.Unlock()
-		return
-	}
 	u.isUpdating = true
 	u.progress = 5
-	u.step = "กำลังตรวจสอบเวอร์ชันจาก GitHub..."
+	u.step = "กำลังตรวจสอบเวอร์ชัน (GitHub / LAN Hub)..."
 	u.target = "CoreChain"
 	u.lastStatus = "checking..."
 	u.mu.Unlock()
 
-	resp, err := u.httpClient.Get(u.cfg.UpdateManifestURL)
+	rm, sourceURL, err := u.fetchManifest()
 	if err != nil {
 		u.setProgress(false, 0, "", "", "check failed: "+err.Error())
 		return
 	}
-	defer resp.Body.Close()
-
-	var rm RemoteManifest
-	if err := json.NewDecoder(resp.Body).Decode(&rm); err != nil {
-		u.setProgress(false, 0, "", "", "invalid manifest: "+err.Error())
-		return
-	}
+	_ = sourceURL
 
 	u.mu.Lock()
 	if rm.CoreVersion != "" {
@@ -153,15 +213,41 @@ func (u *BackgroundUpdater) CheckAndApply() {
 
 	currentBlocks := u.sup.ListBlocks()
 	currentVersions := map[string]string{}
+	currentHashes := map[string]string{}
 	for _, b := range currentBlocks {
 		id, _ := b["id"].(string)
 		ver, _ := b["version"].(string)
+		hash, _ := b["package_hash"].(string)
 		currentVersions[id] = ver
+		currentHashes[id] = hash
+	}
+
+	currentModes := map[string]string{}
+	for _, b := range currentBlocks {
+		id, _ := b["id"].(string)
+		mode, _ := b["dist_mode"].(string)
+		currentModes[id] = mode
 	}
 
 	var toUpdate []BlockManifestEntry
 	for _, entry := range rm.Blocks {
-		if entry.DownloadURL != "" && currentVersions[entry.ID] != entry.Version {
+		if entry.DistMode == "stop" || entry.DistMode == "remove" {
+			if _, exists := currentVersions[entry.ID]; exists && currentModes[entry.ID] != entry.DistMode {
+				log.Printf("[Updater] Applying remote mode '%s' to block '%s'", entry.DistMode, entry.ID)
+				_ = u.sup.SetBlockMode(entry.ID, entry.DistMode)
+			}
+			continue
+		}
+		if entry.DownloadURL == "" {
+			continue
+		}
+		if entry.MinCoreVersion != "" && compareSemver(config.Version, entry.MinCoreVersion) < 0 {
+			log.Printf("[Updater] Skipping %s v%s: requires CoreChain >= v%s (current v%s)", entry.ID, entry.Version, entry.MinCoreVersion, config.Version)
+			continue
+		}
+		verDiff := currentVersions[entry.ID] != entry.Version
+		hashDiff := entry.SHA256 != "" && !strings.EqualFold(currentHashes[entry.ID], entry.SHA256)
+		if verDiff || hashDiff {
 			toUpdate = append(toUpdate, entry)
 		}
 	}
@@ -297,6 +383,81 @@ func (u *BackgroundUpdater) downloadAndVerify(url, dest, expectedSHA string, bas
 			return fmt.Errorf("sha256 mismatch: got %s want %s", got, expectedSHA)
 		}
 	}
-	_ = runtime.GOOS
 	return nil
+}
+
+// SelfUpdateCore downloads a newer CoreChain binary, verifies SHA256, swaps via .old rename, and restarts.
+func (u *BackgroundUpdater) SelfUpdateCore() (string, error) {
+	u.mu.Lock()
+	if u.isUpdating {
+		u.mu.Unlock()
+		return "", fmt.Errorf("update already in progress")
+	}
+	u.isUpdating = true
+	u.progress = 10
+	u.step = "กำลังตรวจสอบ CoreChain เวอร์ชันใหม่..."
+	u.target = "CoreChain.exe"
+	u.lastStatus = "checking core..."
+	u.mu.Unlock()
+
+	rm, _, err := u.fetchManifest()
+	if err != nil {
+		u.setProgress(false, 0, "", "", "core check failed: "+err.Error())
+		return "", err
+	}
+	if rm.CoreVersion == "" || compareSemver(rm.CoreVersion, config.Version) <= 0 {
+		u.setProgress(false, 100, "CoreChain เป็นเวอร์ชันล่าสุดแล้ว", "", "up to date")
+		return config.Version, nil
+	}
+
+	dlURL := rm.CoreX64URL
+	dlSHA := rm.CoreX64SHA
+	if runtime.GOARCH == "arm64" && rm.CoreArmURL != "" {
+		dlURL = rm.CoreArmURL
+		dlSHA = rm.CoreArmSHA
+	}
+	if dlURL == "" {
+		err := fmt.Errorf("no CoreChain binary URL for %s", runtime.GOARCH)
+		u.setProgress(false, 0, "", "", err.Error())
+		return "", err
+	}
+
+	exePath, err := os.Executable()
+	if err != nil {
+		u.setProgress(false, 0, "", "", err.Error())
+		return "", err
+	}
+	newPath := exePath + ".new"
+	oldPath := exePath + ".old"
+
+	u.setProgress(true, 20, fmt.Sprintf("กำลังดาวน์โหลด CoreChain v%s...", rm.CoreVersion), "CoreChain.exe", "downloading core...")
+	if err := u.downloadAndVerify(dlURL, newPath, dlSHA, 20, 70); err != nil {
+		_ = os.Remove(newPath)
+		u.setProgress(false, 0, "", "", "core download failed: "+err.Error())
+		return "", err
+	}
+
+	u.setProgress(true, 95, fmt.Sprintf("กำลังสลับ CoreChain v%s และรีสตาร์ท...", rm.CoreVersion), "CoreChain.exe", "restarting...")
+	_ = os.Remove(oldPath)
+	if err := os.Rename(exePath, oldPath); err != nil {
+		_ = os.Remove(newPath)
+		u.setProgress(false, 0, "", "", "rename failed: "+err.Error())
+		return "", err
+	}
+	if err := os.Rename(newPath, exePath); err != nil {
+		_ = os.Rename(oldPath, exePath)
+		u.setProgress(false, 0, "", "", "swap failed: "+err.Error())
+		return "", err
+	}
+
+	go func() {
+		time.Sleep(400 * time.Millisecond)
+		u.sup.ShutdownAll()
+		cmd := exec.Command(exePath)
+		cmd.Dir = filepath.Dir(exePath)
+		_ = cmd.Start()
+		os.Exit(0)
+	}()
+
+	return rm.CoreVersion, nil
 }

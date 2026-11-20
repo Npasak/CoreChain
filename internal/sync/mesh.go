@@ -20,13 +20,14 @@ import (
 )
 
 type PeerInfo struct {
-	NodeID      string   `json:"node_id"`
-	Hostname    string   `json:"hostname"`
-	LanURL      string   `json:"lan_url"`
-	LastSeenMs  int64    `json:"last_seen_ms"`
-	Blocks      []string `json:"blocks"`
-	CoreVersion string   `json:"core_version"`
-	IsSelf      bool     `json:"is_self,omitempty"`
+	NodeID        string            `json:"node_id"`
+	Hostname      string            `json:"hostname"`
+	LanURL        string            `json:"lan_url"`
+	LastSeenMs    int64             `json:"last_seen_ms"`
+	Blocks        []string          `json:"blocks"`
+	BlockVersions map[string]string `json:"block_versions,omitempty"`
+	CoreVersion   string            `json:"core_version"`
+	IsSelf        bool              `json:"is_self,omitempty"`
 }
 
 type MeshService struct {
@@ -117,18 +118,23 @@ func (m *MeshService) broadcastUDPBeaconLoop() {
 		}
 		blocks := m.sup.ListBlocks()
 		blockIDs := make([]string, 0, len(blocks))
+		blockVers := make(map[string]string, len(blocks))
 		for _, b := range blocks {
 			if id, ok := b["id"].(string); ok {
 				blockIDs = append(blockIDs, id)
+				if ver, ok := b["version"].(string); ok && ver != "" {
+					blockVers[id] = ver
+				}
 			}
 		}
 		beacon := PeerInfo{
-			NodeID:      m.nodeID,
-			Hostname:    m.hostname,
-			LanURL:      primaryURL,
-			LastSeenMs:  time.Now().UnixMilli(),
-			Blocks:      blockIDs,
-			CoreVersion: config.Version,
+			NodeID:        m.nodeID,
+			Hostname:      m.hostname,
+			LanURL:        primaryURL,
+			LastSeenMs:    time.Now().UnixMilli(),
+			Blocks:        blockIDs,
+			BlockVersions: blockVers,
+			CoreVersion:   config.Version,
 		}
 		if raw, err := json.Marshal(beacon); err == nil {
 			_, _ = conn.Write(raw)
@@ -180,20 +186,25 @@ func (m *MeshService) Status(c *fiber.Ctx) error {
 
 	blocks := m.sup.ListBlocks()
 	blockIDs := make([]string, 0, len(blocks))
+	blockVers := make(map[string]string, len(blocks))
 	for _, b := range blocks {
 		if id, ok := b["id"].(string); ok {
 			blockIDs = append(blockIDs, id)
+			if ver, ok := b["version"].(string); ok && ver != "" {
+				blockVers[id] = ver
+			}
 		}
 	}
 
 	self := PeerInfo{
-		NodeID:      m.nodeID,
-		Hostname:    m.hostname,
-		LanURL:      primaryURL,
-		LastSeenMs:  time.Now().UnixMilli(),
-		Blocks:      blockIDs,
-		CoreVersion: config.Version,
-		IsSelf:      true,
+		NodeID:        m.nodeID,
+		Hostname:      m.hostname,
+		LanURL:        primaryURL,
+		LastSeenMs:    time.Now().UnixMilli(),
+		Blocks:        blockIDs,
+		BlockVersions: blockVers,
+		CoreVersion:   config.Version,
+		IsSelf:        true,
 	}
 
 	m.mu.RLock()
@@ -238,25 +249,102 @@ func (m *MeshService) AddPeer(c *fiber.Ctx) error {
 		return c.Status(502).JSON(fiber.Map{"error": "Invalid peer response"})
 	}
 	var blocks []string
+	var blockVers map[string]string
 	for _, p := range peerStatus.Peers {
 		if p.IsSelf {
 			blocks = p.Blocks
+			blockVers = p.BlockVersions
 			break
 		}
 	}
 	info := PeerInfo{
-		NodeID:      peerStatus.NodeID,
-		Hostname:    peerStatus.Hostname,
-		LanURL:      target,
-		LastSeenMs:  time.Now().UnixMilli(),
-		Blocks:      blocks,
-		CoreVersion: peerStatus.CoreVersion,
+		NodeID:        peerStatus.NodeID,
+		Hostname:      peerStatus.Hostname,
+		LanURL:        target,
+		LastSeenMs:    time.Now().UnixMilli(),
+		Blocks:        blocks,
+		BlockVersions: blockVers,
+		CoreVersion:   peerStatus.CoreVersion,
 	}
 	m.mu.Lock()
 	m.peers[peerStatus.NodeID] = info
 	m.mu.Unlock()
 
 	return c.JSON(fiber.Map{"ok": true, "peer": info})
+}
+
+// GetPeers returns a snapshot of discovered LAN peers.
+func (m *MeshService) GetPeers() []PeerInfo {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	list := make([]PeerInfo, 0, len(m.peers))
+	for _, p := range m.peers {
+		list = append(list, p)
+	}
+	return list
+}
+
+// GetPeerLanURLs returns LAN URLs of discovered peers for offline update relay.
+func (m *MeshService) GetPeerLanURLs() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	urls := make([]string, 0, len(m.peers))
+	for _, p := range m.peers {
+		if p.LanURL != "" {
+			urls = append(urls, strings.TrimRight(p.LanURL, "/"))
+		}
+	}
+	return urls
+}
+
+// ServeManifest returns a dynamic manifest.json so any LAN peer can pull updates from this node as a Hub.
+func (m *MeshService) ServeManifest(c *fiber.Ctx) error {
+	baseURL := "http://" + c.Hostname()
+	if baseURL == "http://" {
+		lanURLs := m.GetLanURLs()
+		if len(lanURLs) > 0 {
+			baseURL = lanURLs[0]
+		} else {
+			baseURL = "http://127.0.0.1:" + m.cfg.Port
+		}
+	}
+
+	blocks := m.sup.ListBlocks()
+	var manifestBlocks []fiber.Map
+	for _, b := range blocks {
+		mode, _ := b["dist_mode"].(string)
+		localOnly, _ := b["local_only"].(bool)
+		if localOnly || mode == "local" || mode == "active-unpublic" {
+			continue
+		}
+		if mode == "" {
+			mode = "active"
+		}
+		id, _ := b["id"].(string)
+		ver, _ := b["version"].(string)
+		hash, _ := b["package_hash"].(string)
+		if id == "" {
+			continue
+		}
+		if mode == "active" {
+			pkgFile := filepath.Join(m.cfg.PackagesDir, id+".Blz")
+			if _, err := os.Stat(pkgFile); err != nil {
+				continue
+			}
+		}
+		manifestBlocks = append(manifestBlocks, fiber.Map{
+			"id":           id,
+			"version":      ver,
+			"dist_mode":    mode,
+			"download_url": fmt.Sprintf("%s/api/sync/packages/%s.Blz", baseURL, id),
+			"sha256":       hash,
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"core_version": config.Version,
+		"blocks":       manifestBlocks,
+	})
 }
 
 // ServeBlzPackage lets LAN peers download .Blz packages for P2P update relay.

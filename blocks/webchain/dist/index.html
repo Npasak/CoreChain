@@ -3,11 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WebChain — ศูนย์สื่อสารภายในหน่วยงาน</title>
+  <title>WebChain — Connect. Share. Care.</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/svg+xml" href="/corechain-icon.svg" />
   <base href="/b/webchain/" />
   <script>
     (function(){
       var origFetch = window.fetch;
+      window.coreFetch = origFetch;
       window.fetch = function(input, init) {
         if (typeof input === 'string' && input.startsWith('/api/')) {
           input = '/b/webchain' + input;
@@ -16,7 +19,7 @@
       };
     })();
   </script>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=1.1.0-r8" />
 </head>
 <body>
   <style>
@@ -34,26 +37,32 @@
       transition: transform 0.38s cubic-bezier(0.34,1.56,0.64,1), opacity 0.22s ease;
     }
     .cc-blade.active { background:var(--primary); color:#fff; border-color:var(--primary); }
-    #ccSwissDock.open .cc-blade { opacity:1; pointer-events:auto; }
-    #ccSwissDock.open .cc-b1 { transform: translateY(-50%) rotate(76deg) translateX(-26px) scale(1); transition-delay:0ms; }
-    #ccSwissDock.open .cc-b2 { transform: translateY(-50%) rotate(52deg) translateX(-26px) scale(1); transition-delay:30ms; }
-    #ccSwissDock.open .cc-b3 { transform: translateY(-50%) rotate(26deg) translateX(-26px) scale(1); transition-delay:60ms; }
-    #ccSwissDock.open .cc-b4 { transform: translateY(-50%) rotate(0deg) translateX(-26px) scale(1); transition-delay:90ms; }
+    #ccSwissDock.open .cc-blade,
+    #ccSwissDock:hover .cc-blade { opacity:1; pointer-events:auto; }
+    #ccSwissDock.open .cc-b1, #ccSwissDock:hover .cc-b1 { transform: translateY(-50%) rotate(76deg) translateX(-26px) scale(1); transition-delay:0ms; }
+    #ccSwissDock.open .cc-b2, #ccSwissDock:hover .cc-b2 { transform: translateY(-50%) rotate(52deg) translateX(-26px) scale(1); transition-delay:30ms; }
+    #ccSwissDock.open .cc-b3, #ccSwissDock:hover .cc-b3 { transform: translateY(-50%) rotate(26deg) translateX(-26px) scale(1); transition-delay:60ms; }
+    #ccSwissDock.open .cc-b4, #ccSwissDock:hover .cc-b4 { transform: translateY(-50%) rotate(0deg) translateX(-26px) scale(1); transition-delay:90ms; }
+    #ccSwissDock .cc-b1:hover { transform: translateY(-50%) rotate(76deg) translateX(-32px) scale(1.09); border-color:var(--primary); box-shadow:0 10px 26px rgba(15,23,42,0.26); }
+    #ccSwissDock .cc-b2:hover { transform: translateY(-50%) rotate(52deg) translateX(-32px) scale(1.09); border-color:var(--primary); box-shadow:0 10px 26px rgba(15,23,42,0.26); }
+    #ccSwissDock .cc-b3:hover { transform: translateY(-50%) rotate(26deg) translateX(-32px) scale(1.09); border-color:var(--primary); box-shadow:0 10px 26px rgba(15,23,42,0.26); }
+    #ccSwissDock .cc-b4:hover { transform: translateY(-50%) rotate(0deg) translateX(-32px) scale(1.09); border-color:var(--primary); box-shadow:0 10px 26px rgba(15,23,42,0.26); }
     #ccSwissBtn {
       position:relative; z-index:2; width:42px; height:42px;
       background:var(--surface); color:var(--primary); border:1.5px solid var(--border);
       border-radius:999px; font-size:16px; font-weight:800; cursor:pointer;
       display:flex; align-items:center; justify-content:center;
-      box-shadow:0 4px 14px rgba(15,23,42,0.18); transition: transform 0.25s ease, background 0.2s ease;
+      box-shadow:0 4px 14px rgba(15,23,42,0.18); transition: transform 0.25s ease, background 0.2s ease, color 0.2s ease;
     }
-    #ccSwissDock.open #ccSwissBtn { background:var(--primary); color:#fff; transform: rotate(45deg) scale(1.06); }
+    #ccSwissDock.open #ccSwissBtn,
+    #ccSwissDock:hover #ccSwissBtn { background:var(--primary); color:#fff; transform: rotate(45deg) scale(1.08); }
   </style>
   <div id="ccSwissDock">
-    <a href="/" class="cc-blade cc-b1">🏠 CoreChain</a>
-    <a href="/b/webchain/" class="cc-blade cc-b2 active">🏥 WebChain</a>
-    <a href="/b/learnchain/" class="cc-blade cc-b3">🎓 LearnChain</a>
-    <a href="/b/docchain/" class="cc-blade cc-b4">📄 DocChain</a>
-    <button id="ccSwissBtn" type="button" onclick="document.getElementById('ccSwissDock').classList.toggle('open')" title="คลี่เมนู CoreChain">⛓️</button>
+    <a href="/b/webchain/" class="cc-blade cc-b1 active">🏥 WebChain</a>
+    <a href="/b/learnchain/" class="cc-blade cc-b2">🎓 LearnChain</a>
+    <a href="/b/docchain/" class="cc-blade cc-b3">📄 DocChain</a>
+    <a href="/?hub=1" class="cc-blade cc-b4">🏠 CoreChain HUB</a>
+    <button id="ccSwissBtn" type="button" onclick="document.getElementById('ccSwissDock').classList.toggle('open')" title="คลี่เมนู CoreChain HUB">⛓️</button>
   </div>
   <!-- Root Portal Selector (shown only on /) -->
   <div id="portalSelector" class="portal-selector hidden">
@@ -64,12 +73,12 @@
         <a href="/b/webchain/special-2" class="portal-card">
           <div class="portal-card-icon">🩺</div>
           <h2>งานการพยาบาลผู้ป่วยพิเศษ 2</h2>
-          <p>หอสงฆ์ • สว11 • สว12</p>
+          <p>ดูแลด้วยศรัทธา รักษาด้วยหัวใจ ห่วงใยดุจญาติมิตร</p>
         </a>
         <a href="/b/webchain/special-3" class="portal-card">
           <div class="portal-card-icon">🏥</div>
           <h2>งานการพยาบาลผู้ป่วยพิเศษ 3</h2>
-          <p>8A • 8B • 9A • 9B • 9C</p>
+          <p>เชี่ยวชาญในการดูแล เที่ยงตรงในมาตรฐาน ประทับใจในบริการ</p>
         </a>
       </div>
     </div>
@@ -102,6 +111,9 @@
       </div>
 
       <div class="unified-nav-wrap">
+        <div id="mobileMiniNav" class="mobile-mini-nav">
+          <select id="mobileUnifiedSelect" class="mini-select" onchange="onMobileNavChange(this.value)" title="เลือกดูหน่วยงาน หรือ ข่าวสาร"></select>
+        </div>
         <div class="nav-groups">
           <div class="nav-group" id="wardBar"></div>
           <div class="nav-divider" aria-hidden="true"></div>
@@ -137,10 +149,10 @@
     </footer>
   </div>
 
-  <!-- Floating Right-Corner Dock (Notification Widget + Pin Home Ward) -->
+  <!-- Floating Top-Right Minimal Dock (Pin Home Ward + Notifications) -->
   <div class="floating-dock">
-    <div id="floatingNotif" class="floating-notif hidden"></div>
     <div id="floatingPin" class="floating-pin hidden"></div>
+    <div id="floatingNotif" class="floating-notif hidden"></div>
   </div>
 
   <!-- Photo Book Detail / Lightbox Modal -->
@@ -196,7 +208,11 @@
         <h3>📱 เปิดหน้านี้บนมือถือ</h3>
         <button class="close-btn" onclick="closeModal('qrModal')">✕</button>
       </div>
-      <p style="font-size:13px;color:var(--muted);margin-top:0;">สแกน QR Code ด้วยกล้องมือถือ (เชื่อมต่อ Wi-Fi/LAN เดียวกัน)</p>
+      <div class="modal-tabs" style="margin-bottom:12px;">
+        <button type="button" id="qrTabLan" class="modal-tab active" onclick="setQRMode('lan')">📶 Wi-Fi หน่วยงาน</button>
+        <button type="button" id="qrTab5G" class="modal-tab" onclick="setQRMode('5g')">📱นอกโรงพยาบาล</button>
+      </div>
+      <p id="qrModeHint" style="font-size:12.5px;color:var(--muted);margin-top:0;">สแกน QR Code ด้วยกล้องมือถือ</p>
       <div id="qrImageBox" class="qr-box">กำลังสร้าง QR...</div>
       <div id="qrUrlText" class="qr-url"></div>
     </div>
@@ -358,6 +374,6 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=1.1.0-r13"></script>
 </body>
 </html>

@@ -11,7 +11,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-const Version = "1.2.4"
+const Version = "1.2.5"
 
 type Config struct {
 	Port               string
@@ -25,6 +25,7 @@ type Config struct {
 	AutoUpdateEnabled  bool
 	AutoUpdateMin      int
 	UpdateManifestURL  string
+	AutoTunnel         bool
 	AuthSecret         string
 	AutoOpenBrowser    bool
 }
@@ -64,6 +65,7 @@ func Load() *Config {
 		AutoUpdateEnabled:  getEnvBool("AUTO_UPDATE_ENABLED", true),
 		AutoUpdateMin:      intervalMin,
 		UpdateManifestURL:  getEnv("UPDATE_MANIFEST_URL", "https://raw.githubusercontent.com/Npasak/CoreChain/main/manifest.json"),
+		AutoTunnel:         getEnvBool("AUTO_TUNNEL", true),
 		AuthSecret:         secret,
 		AutoOpenBrowser:    getEnvBool("AUTO_OPEN_BROWSER", true),
 	}

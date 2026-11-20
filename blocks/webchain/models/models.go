@@ -14,7 +14,7 @@ const (
 )
 
 var Special2Wards = []string{"หอสงฆ์", "สว11", "สว12"}
-var Special3Wards = []string{"8A", "8B", "9A", "9B", "9C"}
+var Special3Wards = []string{"8B", "8C", "9A", "9B", "9C"}
 
 // User represents a registered poster/admin (viewers do not need to log in)
 type User struct {

@@ -299,6 +299,7 @@ func (h *SyncHandler) syncWithPeers() {
 			_ = pushResp.Body.Close()
 		}
 
+		activePosts, activeUsers := countActiveInSnapshot(snap)
 		h.mu.Lock()
 		h.activeNodes[snap.NodeID] = PeerNodeInfo{
 			NodeID:       snap.NodeID,
@@ -306,8 +307,8 @@ func (h *SyncHandler) syncWithPeers() {
 			LanURL:       target,
 			LastSeenMs:   time.Now().UnixMilli(),
 			LastSeenText: "ออนไลน์",
-			PostsCount:   int64(len(snap.Posts)),
-			UsersCount:   int64(len(snap.Users)),
+			PostsCount:   activePosts,
+			UsersCount:   activeUsers,
 			IsMaster:     true,
 			LatencyMs:    latency,
 		}
@@ -542,6 +543,21 @@ func buildLocalSnapshot(nodeID string) SyncSnapshot {
 	}
 }
 
+func countActiveInSnapshot(snap SyncSnapshot) (int64, int64) {
+	var posts, users int64
+	for _, p := range snap.Posts {
+		if !p.DeletedAt.Valid {
+			posts++
+		}
+	}
+	for _, u := range snap.Users {
+		if !u.DeletedAt.Valid && !u.IsHidden {
+			users++
+		}
+	}
+	return posts, users
+}
+
 func deduplicatePosts() {
 	var posts []models.Post
 	database.DB.Order("created_at asc").Find(&posts)
@@ -746,6 +762,7 @@ func (h *SyncHandler) ImportSnapshot(c *fiber.Ctx) error {
 		if peerHost == "" {
 			peerHost = snap.NodeID
 		}
+		activePosts, activeUsers := countActiveInSnapshot(snap)
 		h.mu.Lock()
 		h.activeNodes[snap.NodeID] = PeerNodeInfo{
 			NodeID:       snap.NodeID,
@@ -753,8 +770,8 @@ func (h *SyncHandler) ImportSnapshot(c *fiber.Ctx) error {
 			LanURL:       peerURL,
 			LastSeenMs:   time.Now().UnixMilli(),
 			LastSeenText: "ออนไลน์",
-			PostsCount:   int64(len(snap.Posts)),
-			UsersCount:   int64(len(snap.Users)),
+			PostsCount:   activePosts,
+			UsersCount:   activeUsers,
 		}
 		if peerURL != "" && !h.isOwnURL(peerURL) {
 			found := false

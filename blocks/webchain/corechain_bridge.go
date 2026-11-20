@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"corechain/sdk/blocksdk"
@@ -48,7 +50,7 @@ func setupCoreChainBridge(app *fiber.App, env blocksdk.RuntimeEnv) {
 
 	blocksdk.RegisterStandardRoutes(app, blocksdk.StandardOptions{
 		BlockID: env.BlockID,
-		Version: "1.0.0",
+		Version: "v1.1.0",
 		StatsProvider: func() blocksdk.BlockStats {
 			var postCount, wardCount int64
 			database.DB.Model(&models.Post{}).Count(&postCount)
@@ -65,6 +67,46 @@ func setupCoreChainBridge(app *fiber.App, env blocksdk.RuntimeEnv) {
 				var posts []models.Post
 				database.DB.Order("created_at desc").Limit(5).Find(&posts)
 				return posts, nil
+			},
+			"ward_summary": func(c *fiber.Ctx, payload map[string]any) (any, error) {
+				var wards []models.WardProfile
+				database.DB.Find(&wards)
+				var summary []map[string]any
+				totalBeds := 0
+				posTotals := map[string]int{}
+				for _, w := range wards {
+					if strings.HasPrefix(w.WardCode, "dept-") {
+						continue
+					}
+					totalBeds += w.BedCount
+					var roster []struct {
+						Name     string `json:"name"`
+						Position string `json:"position"`
+					}
+					_ = json.Unmarshal([]byte(w.Roster), &roster)
+					wardPos := map[string]int{}
+					for _, r := range roster {
+						p := strings.TrimSpace(r.Position)
+						if p == "" {
+							p = "ไม่ระบุตำแหน่ง"
+						}
+						wardPos[p]++
+						posTotals[p]++
+					}
+					summary = append(summary, map[string]any{
+						"ward_code":    w.WardCode,
+						"display_name": w.DisplayName,
+						"department":   w.Department,
+						"bed_count":    w.BedCount,
+						"roster_count": len(roster),
+						"positions":    wardPos,
+					})
+				}
+				return map[string]any{
+					"total_beds":      totalBeds,
+					"position_totals": posTotals,
+					"wards":           summary,
+				}, nil
 			},
 		},
 		EventHandler: func(topic, sender string, payload map[string]any) {

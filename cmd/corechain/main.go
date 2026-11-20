@@ -8,10 +8,13 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -22,6 +25,7 @@ import (
 	"corechain/internal/models"
 	"corechain/internal/supervisor"
 	mesh "corechain/internal/sync"
+	"corechain/internal/tunnel"
 	"corechain/internal/updater"
 	"corechain/internal/vault"
 	"corechain/sdk/blocksdk"
@@ -35,6 +39,9 @@ import (
 
 //go:embed dist/*
 var embedDist embed.FS
+
+//go:embed corechain.ico
+var embedFavicon []byte
 
 func main() {
 	fmt.Printf(`
@@ -54,14 +61,25 @@ func main() {
 		}
 	}
 
+	if exe, err := os.Executable(); err == nil {
+		_ = os.Remove(exe + ".old")
+	}
+
 	cfg := config.Load()
 	db := database.InitCoreDB(cfg)
+	// Clear previous sessions on startup and whenever a fresh app window opens after being closed
+	db.Where("1 = 1").Delete(&models.UserSession{})
+	onFreshWindowOpen = func() {
+		db.Where("1 = 1").Delete(&models.UserSession{})
+	}
 
 	authSvc := auth.NewService(db, cfg.AuthSecret)
 	sup := supervisor.NewSupervisor(cfg, db, authSvc)
 	bus := connector.NewBus(cfg, db, sup)
 	meshSvc := mesh.NewMeshService(cfg, db, sup)
+	tunnelSvc := tunnel.NewService(cfg)
 	bgUpdater := updater.NewBackgroundUpdater(cfg, sup)
+	bgUpdater.SetPeerSource(meshSvc)
 	godVault := vault.NewGodVault(cfg, db)
 
 	// Bind listener first (port 80 default, fallback to 8080/8888 if busy)
@@ -88,6 +106,9 @@ func main() {
 	sup.BootAll()
 	meshSvc.StartLANDiscovery()
 	bgUpdater.Start()
+	if cfg.AutoTunnel {
+		tunnelSvc.Start()
+	}
 
 	app := fiber.New(fiber.Config{
 		AppName:   "CoreChain Decentralized Launcher",
@@ -102,6 +123,13 @@ func main() {
 		AllowOrigins: "*",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Auth-Token",
 	}))
+
+	// Serve unified CoreChain icon & favicon across all blocks
+	app.Get("/favicon.ico", func(c *fiber.Ctx) error {
+		c.Set("Content-Type", "image/x-icon")
+		c.Set("Cache-Control", "public, max-age=86400")
+		return c.Send(embedFavicon)
+	})
 
 	// Serve unified Pic/<block_id>/... directory directly
 	app.Static("/Pic", cfg.PicDir)
@@ -158,8 +186,35 @@ func main() {
 	api.Post("/auth/register", authSvc.Register)
 	api.Post("/auth/logout", authSvc.Logout)
 	api.Get("/auth/me", authSvc.Me)
-	api.Get("/users", authSvc.RequireAdmin(), authSvc.ListUsers)
-	api.Post("/users/:id/block-role", authSvc.RequireAdmin(), authSvc.SetBlockRole)
+	api.Get("/auth/default-dest", func(c *fiber.Ctx) error {
+		var s models.SystemSetting
+		if err := db.Where("key = ?", "default_landing_dest").First(&s).Error; err == nil && s.Value != "" {
+			return c.JSON(fiber.Map{"dest": s.Value})
+		}
+		return c.JSON(fiber.Map{"dest": "/"})
+	})
+	api.Post("/auth/default-dest", func(c *fiber.Ctx) error {
+		if auth.GetUser(c) == nil {
+			return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+		}
+		var body struct {
+			Dest string `json:"dest"`
+		}
+		if err := c.BodyParser(&body); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
+		}
+		dest := strings.TrimSpace(body.Dest)
+		if dest != "/" && dest != "/b/webchain/special-2" && dest != "/b/webchain/special-3" {
+			dest = "/"
+		}
+		db.Save(&models.SystemSetting{Key: "default_landing_dest", Value: dest})
+		return c.JSON(fiber.Map{"ok": true, "dest": dest})
+	})
+	api.Get("/users", authSvc.RequireManager(), authSvc.ListUsers)
+	api.Post("/users", authSvc.RequireManager(), authSvc.CreateUser)
+	api.Patch("/users/:id", authSvc.RequireManager(), authSvc.UpdateUser)
+	api.Delete("/users/:id", authSvc.RequireManager(), authSvc.DeleteUser)
+	api.Post("/users/:id/block-role", authSvc.RequireManager(), authSvc.SetBlockRole)
 
 	// Block Management & .Blz Hot-Swap
 	api.Get("/blocks", func(c *fiber.Ctx) error {
@@ -198,13 +253,33 @@ func main() {
 		sup.StopBlock(id)
 		return c.JSON(fiber.Map{"ok": true})
 	})
-	api.Post("/blocks/:id/restart", authSvc.RequireAdmin(), func(c *fiber.Ctx) error {
+	api.Post("/blocks/:id/restart", authSvc.RequireManager(), func(c *fiber.Ctx) error {
 		id := c.Params("id")
 		sup.StopBlock(id)
 		if err := sup.StartBlock(id); err != nil {
 			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 		}
 		return c.JSON(fiber.Map{"ok": true})
+	})
+	api.Post("/blocks/:id/mode", authSvc.RequireManager(), func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		var body struct {
+			Mode string `json:"mode"`
+		}
+		if err := c.BodyParser(&body); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
+		}
+		mode := strings.ToLower(strings.TrimSpace(body.Mode))
+		if mode == "remove" {
+			u := auth.GetUser(c)
+			if u == nil || (u.Username != "therunrock" && u.GlobalRole != "god") {
+				return c.Status(403).JSON(fiber.Map{"error": "คำสั่ง Remove ใช้ได้เฉพาะ therunrock เท่านั้น"})
+			}
+		}
+		if err := sup.SetBlockMode(id, mode); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{"ok": true, "mode": mode})
 	})
 	api.Post("/blocks/:id/cpu", authSvc.RequireAdmin(), func(c *fiber.Ctx) error {
 		id := c.Params("id")
@@ -219,6 +294,19 @@ func main() {
 		_ = sup.StartBlock(id)
 		return c.JSON(fiber.Map{"ok": true, "cpu_threads": body.CPUThreads})
 	})
+	api.Post("/blocks/:id/local-only", authSvc.RequireAdmin(), func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		var body struct {
+			LocalOnly bool `json:"local_only"`
+		}
+		if err := c.BodyParser(&body); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
+		}
+		if err := sup.SetLocalOnly(id, body.LocalOnly); err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{"ok": true, "local_only": body.LocalOnly})
+	})
 
 	// Connector Bus (Block-to-Block RPC + Event Pub/Sub)
 	api.Post("/connector/call/:block/:action", bus.CallBlock)
@@ -227,8 +315,26 @@ func main() {
 
 	// Decentralized LAN Mesh & .Blz Relay
 	api.Get("/sync/status", meshSvc.Status)
+	api.Get("/sync/manifest.json", meshSvc.ServeManifest)
 	api.Post("/sync/peers/add", authSvc.RequireAdmin(), meshSvc.AddPeer)
 	api.Get("/sync/packages/:filename", meshSvc.ServeBlzPackage)
+
+	// Cloudflare 5G Public Tunnel
+	api.Get("/tunnel/status", func(c *fiber.Ctx) error {
+		return c.JSON(tunnelSvc.Status())
+	})
+	api.Post("/tunnel/start", func(c *fiber.Ctx) error {
+		ip := c.IP()
+		if auth.GetUser(c) == nil && ip != "127.0.0.1" && ip != "::1" {
+			return c.Status(403).JSON(fiber.Map{"error": "Admin privileges required"})
+		}
+		tunnelSvc.Start()
+		return c.JSON(fiber.Map{"ok": true, "tunnel": tunnelSvc.Status()})
+	})
+	api.Post("/tunnel/stop", authSvc.RequireAdmin(), func(c *fiber.Ctx) error {
+		tunnelSvc.Stop()
+		return c.JSON(fiber.Map{"ok": true, "tunnel": tunnelSvc.Status()})
+	})
 
 	// Background Auto-Updater
 	api.Get("/updater/status", func(c *fiber.Ctx) error {
@@ -237,6 +343,13 @@ func main() {
 	api.Post("/updater/check", authSvc.RequireAdmin(), func(c *fiber.Ctx) error {
 		go bgUpdater.CheckAndApply()
 		return c.JSON(fiber.Map{"ok": true, "message": "Background update check started"})
+	})
+	api.Post("/updater/self-update", authSvc.RequireAdmin(), func(c *fiber.Ctx) error {
+		ver, err := bgUpdater.SelfUpdateCore()
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		}
+		return c.JSON(fiber.Map{"ok": true, "version": ver, "message": "CoreChain self-update initiated"})
 	})
 
 	// Unified God Vault & Clean-Install Sync
@@ -253,16 +366,50 @@ func main() {
 	god.Post("/backup", godVault.CreateBackup)
 	god.Get("/backup/:filename", godVault.DownloadBackup)
 
+	// System-wide Login Gate: every block & CoreChain HUB requires CoreChain session
+	requireCoreLoginGate := func(c *fiber.Ctx) error {
+		if auth.GetUser(c) != nil {
+			return c.Next()
+		}
+		p := c.Path()
+		accept := c.Get("Accept")
+		if strings.Contains(p, "/api/") || (strings.Contains(accept, "application/json") && !strings.Contains(accept, "text/html")) {
+			return c.Status(401).JSON(fiber.Map{"error": "Authentication required", "login_url": "/login"})
+		}
+		return c.Redirect("/login?next=" + url.QueryEscape(c.OriginalURL()))
+	}
+
 	// Reverse Proxy to Isolated Block Workers (/b/:block/*)
-	app.All("/b/:block", authSvc.OptionalUserMiddleware(), sup.ProxyToBlock)
-	app.All("/b/:block/*", authSvc.OptionalUserMiddleware(), sup.ProxyToBlock)
+	app.All("/b/:block", authSvc.OptionalUserMiddleware(), requireCoreLoginGate, sup.ProxyToBlock)
+	app.All("/b/:block/*", authSvc.OptionalUserMiddleware(), requireCoreLoginGate, sup.ProxyToBlock)
 
 	// Embedded Launcher Frontend
 	distFS, err := fs.Sub(embedDist, "dist")
 	if err != nil {
 		log.Fatalf("Failed to load embedded dist/: %v", err)
 	}
-	app.Use("/", filesystem.New(filesystem.Config{
+	app.Get("/login", func(c *fiber.Ctx) error {
+		data, err := fs.ReadFile(distFS, "login.html")
+		if err != nil {
+			return c.Status(404).SendString("login.html not found")
+		}
+		c.Set("Content-Type", "text/html; charset=utf-8")
+		c.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		return c.Send(data)
+	})
+	app.Get("/", authSvc.OptionalUserMiddleware(), requireCoreLoginGate, func(c *fiber.Ctx) error {
+		data, err := fs.ReadFile(distFS, "index.html")
+		if err != nil {
+			return c.Status(404).SendString("index.html not found")
+		}
+		c.Set("Content-Type", "text/html; charset=utf-8")
+		c.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		return c.Send(data)
+	})
+	app.Use("/", func(c *fiber.Ctx) error {
+		c.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		return c.Next()
+	}, filesystem.New(filesystem.Config{
 		Root:   http.FS(distFS),
 		Browse: false,
 	}))
@@ -287,12 +434,31 @@ func main() {
 	}
 
 	// Start System Tray (runs on background thread on Windows)
+	triggerRestart := func() {
+		log.Println("Restarting CoreChain and all block workers...")
+		closeAppWindows()
+		tunnelSvc.Stop()
+		sup.ShutdownAll()
+		_ = app.Shutdown()
+		if exePath, err := os.Executable(); err == nil {
+			cmd := exec.Command(exePath)
+			cmd.Dir = filepath.Dir(exePath)
+			_ = cmd.Start()
+		}
+		os.Exit(0)
+	}
+
 	go runSystemTray(localURL, func() {
-		go bgUpdater.CheckAndApply()
-	}, triggerQuit)
+		go func() {
+			bgUpdater.CheckAndApply()
+			_, _ = bgUpdater.SelfUpdateCore()
+		}()
+	}, triggerRestart, triggerQuit)
 
 	<-quit
 	log.Println("Shutting down CoreChain and all block workers...")
+	closeAppWindows()
+	tunnelSvc.Stop()
 	sup.ShutdownAll()
 	_ = app.Shutdown()
 }

@@ -37,8 +37,9 @@ CoreChain Decentralized Block Launcher
     $wTmp = "_zip_tmp_web_$Arch"
     New-Item -ItemType Directory -Force -Path $wTmp | Out-Null
     Copy-Item -Force "blocks\webchain\manifest.json" "$wTmp\manifest.json"
+    $webLdFlags = "-H=windowsgui -s -w -X webchain/version.Version=v1.1.0 -X webchain/version.BuildDate=$BuildDate"
     Push-Location blocks\webchain
-    go build -ldflags="-H=windowsgui -s -w" -o "..\..\$wTmp\block.exe" .
+    go build -ldflags="$webLdFlags" -o "..\..\$wTmp\block.exe" .
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     Pop-Location
 

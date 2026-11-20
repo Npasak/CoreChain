@@ -52,8 +52,11 @@ type InstalledBlock struct {
 	Version     string    `json:"version"`
 	Icon        string    `json:"icon"`
 	Color       string    `json:"color"`
-	Enabled     bool      `gorm:"default:true" json:"enabled"`
-	CPUThreads  int       `gorm:"default:0" json:"cpu_threads"`
+	Enabled     bool       `gorm:"default:true" json:"enabled"`
+	LocalOnly   bool       `gorm:"default:false" json:"local_only"`
+	DistMode    string     `gorm:"default:'active'" json:"dist_mode"` // local | active | active-unpublic | stop | remove
+	RemoveAt    *time.Time `json:"remove_at,omitempty"`
+	CPUThreads  int        `gorm:"default:0" json:"cpu_threads"`
 	SortOrder   int       `gorm:"default:0" json:"sort_order"`
 	PackageHash string    `json:"package_hash"`
 	InstalledAt time.Time `json:"installed_at"`

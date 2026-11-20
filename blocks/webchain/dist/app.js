@@ -1,6 +1,6 @@
 const DEPTS = {
-  'special-2': { name: 'งานการพยาบาลผู้ป่วยพิเศษ 2', wards: ['หอสงฆ์', 'สว11', 'สว12'] },
-  'special-3': { name: 'งานการพยาบาลผู้ป่วยพิเศษ 3', wards: ['8A', '8B', '9A', '9B', '9C'] },
+  'special-2': { name: 'งานการพยาบาลผู้ป่วยพิเศษ 2', slogan: 'ดูแลด้วยศรัทธา รักษาด้วยหัวใจ ห่วงใยดุจญาติมิตร', wards: ['หอสงฆ์', 'สว11', 'สว12'] },
+  'special-3': { name: 'งานการพยาบาลผู้ป่วยพิเศษ 3', slogan: 'เชี่ยวชาญในการดูแล เที่ยงตรงในมาตรฐาน ประทับใจในบริการ', wards: ['8B', '8C', '9A', '9B', '9C'] },
 };
 
 let state = {
@@ -9,6 +9,7 @@ let state = {
   ward: 'all',
   category: 'all',
   includeOld: false,
+  showAllNews: false,
   archivedCount: 0,
   posts: [],
   birthdays: [],
@@ -57,7 +58,7 @@ function init() {
   const info = DEPTS[state.dept];
   document.title = `${info.name} — WebChain`;
   document.getElementById('deptTitleMain').textContent = info.name;
-  document.getElementById('deptTitleSub').textContent = info.wards.join(' • ');
+  document.getElementById('deptTitleSub').textContent = info.slogan || info.wards.join(' • ');
 
   renderWardBar();
   syncNavView();
@@ -98,7 +99,45 @@ function renderWardBar() {
     `;
   });
   bar.innerHTML = html;
+  syncMobileUnifiedNav();
   renderFloatingPin();
+}
+
+function syncMobileUnifiedNav() {
+  const sel = document.getElementById('mobileUnifiedSelect');
+  if (!sel || !state.dept) return;
+  const info = DEPTS[state.dept];
+  const pinnedWard = localStorage.getItem(`webchain_pinned_ward_${state.dept}`) || '';
+  const currentVal = state.viewMode === 'news' ? `news:${state.category}` : `ward:${state.ward}`;
+
+  const wardOpts = ['all', ...info.wards].map(w => {
+    const label = w === 'all' ? '🏥 หน่วยงานรวม' : `🏥 ${w}`;
+    const val = `ward:${w}`;
+    return `<option value="${val}" ${currentVal === val ? 'selected' : ''}>${label}${pinnedWard === w ? ' ★' : ''}</option>`;
+  }).join('');
+
+  const newsCats = [
+    ['news:all', '📰 ข่าวสารทั้งหมด'],
+    ['news:meeting', '📅 ประชุม / อบรม'],
+    ['news:activity', '📸 กิจกรรม'],
+    ['news:announcement', '📢 ประกาศ'],
+    ['news:award', '🏆 ยินดีรางวัล'],
+  ];
+  const newsOpts = newsCats.map(([val, label]) =>
+    `<option value="${val}" ${currentVal === val ? 'selected' : ''}>${label}</option>`
+  ).join('');
+
+  sel.innerHTML = `<optgroup label="🏥 หน่วยงาน">${wardOpts}</optgroup><optgroup label="📰 ข่าวสารและกิจกรรม">${newsOpts}</optgroup>`;
+  sel.value = currentVal;
+}
+
+function onMobileNavChange(val) {
+  if (!val) return;
+  if (val.startsWith('ward:')) {
+    selectWard(val.slice(5));
+  } else if (val.startsWith('news:')) {
+    setCategory(val.slice(5));
+  }
 }
 
 function renderFloatingPin() {
@@ -113,8 +152,8 @@ function renderFloatingPin() {
   box.classList.remove('hidden');
   box.innerHTML = `
     <button type="button" class="pin-circle ${isThisPinned ? 'pinned' : ''}" onclick="togglePinWard('${state.ward}')" title="${isThisPinned ? 'ตั้งเป็นหน้าแรกแล้ว (คลิกเพื่อยกเลิก)' : 'ตั้ง ' + escapeHtml(state.ward) + ' เป็นหน้าแรกของเครื่องนี้'}">
-      <span style="font-size:20px;line-height:1;">🏠</span>
-      <span style="font-size:9.5px;font-weight:700;line-height:1.1;">${isThisPinned ? 'หน้าแรก' : 'ตั้งหน้าแรก'}</span>
+      <span>${isThisPinned ? 'หน้าแรก ✓' : 'ตั้งหน้าแรก'}</span>
+      <span style="font-size:14px;line-height:1;">🏠</span>
     </button>
   `;
 }
@@ -127,6 +166,7 @@ function syncNavView() {
   document.querySelectorAll('#catTabs .ward-chip').forEach(t => {
     t.classList.toggle('active-cat', state.viewMode === 'news' && t.dataset.cat === state.category);
   });
+  syncMobileUnifiedNav();
 
   if (state.viewMode === 'ward') {
     showcase.classList.remove('hidden');
@@ -232,21 +272,37 @@ function logout() {
 async function fetchLinks() {
   const data = await api('/api/links');
   state.links = data.links || [];
-  let lcOnline = false;
+  let lcOnline = true;
+  let docOnline = true;
   try {
-    const ping = await api('/api/links/learnchain/ping');
-    lcOnline = !!ping.online;
+    const bRes = await (window.coreFetch || fetch)('/api/blocks');
+    if (bRes.ok) {
+      const bData = await bRes.json();
+      const blocks = bData.blocks || [];
+      const lc = blocks.find(b => b.id === 'learnchain');
+      const dc = blocks.find(b => b.id === 'docchain');
+      if (lc) lcOnline = lc.status === 'running';
+      if (dc) docOnline = dc.status === 'running';
+    }
   } catch {}
 
   const bar = document.getElementById('externalLinksBar');
-  bar.innerHTML = state.links.map(l => {
-    if (l.status === 'coming_soon' || !l.url) {
-      return `<span class="ext-pill coming-soon" title="${escapeHtml(l.description || '')}">${l.icon || '🔗'} สืบค้นเอกสาร <span class="badge-soon">กำลังพัฒนา</span></span>`;
+  const mapped = state.links.map(l => {
+    if (l.key === 'learnchain') {
+      return `<a class="ext-pill active" href="/b/learnchain/" title="LearnChain E-Learning"><span class="dot ${lcOnline ? 'dot-ok' : 'dot-off'}"></span>🎓 LearnChain</a>`;
     }
-    const dot = l.key === 'learnchain' ? `<span class="dot ${lcOnline ? 'dot-ok' : 'dot-off'}"></span>` : '';
-    const shortLabel = l.key === 'learnchain' ? 'LearnChain' : l.label;
-    return `<a class="ext-pill active" href="${escapeHtml(l.url)}" target="_blank" rel="noopener" title="${escapeHtml(l.description || '')}">${dot}${l.icon || '🔗'} ${escapeHtml(shortLabel)}</a>`;
-  }).join('');
+    if (l.key === 'docchain' || l.key === 'docs' || l.key === 'search' || (l.label && l.label.includes('เอกสาร'))) {
+      return `<a class="ext-pill active" href="/b/docchain/" title="DocChain คลังเอกสาร"><span class="dot ${docOnline ? 'dot-ok' : 'dot-off'}"></span>📄 DocChain</a>`;
+    }
+    if (l.status === 'coming_soon' || !l.url) {
+      return `<a class="ext-pill active" href="/b/docchain/" title="DocChain คลังเอกสาร"><span class="dot ${docOnline ? 'dot-ok' : 'dot-off'}"></span>📄 DocChain</a>`;
+    }
+    return `<a class="ext-pill active" href="${escapeHtml(l.url)}" title="${escapeHtml(l.description || '')}">${l.icon || '🔗'} ${escapeHtml(l.label)}</a>`;
+  });
+  if (!state.links.some(l => l.key === 'docchain' || l.key === 'docs' || l.key === 'search' || (l.label && l.label.includes('เอกสาร')))) {
+    mapped.push(`<a class="ext-pill active" href="/b/docchain/" title="DocChain คลังเอกสาร"><span class="dot ${docOnline ? 'dot-ok' : 'dot-off'}"></span>📄 DocChain</a>`);
+  }
+  bar.innerHTML = mapped.join('');
 }
 
 async function fetchPosts() {
@@ -257,8 +313,17 @@ async function fetchPosts() {
     include_old: state.includeOld ? 'true' : 'false',
   });
   const data = await api('/api/posts?' + params.toString());
-  state.posts = data.posts || [];
-  state.archivedCount = data.archived_count || 0;
+  const nextPosts = data.posts || [];
+  const nextArchived = data.archived_count || 0;
+  const sig = nextPosts.map(p => `${p.id}:${p.updated_at}:${p.applause_count}`).join('|') +
+    `#${nextArchived}#${state.viewMode}#${state.category}#${state.ward}#${state.includeOld}`;
+
+  if (sig === state.lastPostsSig) {
+    return;
+  }
+  state.lastPostsSig = sig;
+  state.posts = nextPosts;
+  state.archivedCount = nextArchived;
 
   const btnOld = document.getElementById('btnToggleOld');
   if (state.viewMode === 'news' && state.archivedCount > 0) {
@@ -287,7 +352,11 @@ function renderPosts() {
     return;
   }
 
-  grid.innerHTML = filtered.map((p, idx) => {
+  const maxInitial = 6;
+  const hasMore = filtered.length > maxInitial;
+  const visible = (!state.showAllNews && hasMore) ? filtered.slice(0, maxInitial) : filtered;
+
+  const cardsHtml = visible.map((p, idx) => {
     const wards = parseWards(p.target_wards);
     const wardText = wards.includes('all') ? 'ทุกหอผู้ป่วย' : wards.join(', ');
     const catIcon = p.category === 'award' ? '🏆' : p.category === 'meeting' ? '📅' : p.category === 'activity' ? '📸' : '📢';
@@ -352,6 +421,23 @@ function renderPosts() {
       </article>
     `;
   }).join('');
+
+  const moreBtnHtml = hasMore ? `
+    <div style="grid-column:1/-1;display:flex;justify-content:center;padding:8px 0 4px;">
+      <button type="button" class="btn btn-ghost btn-pill" style="padding:10px 22px;font-weight:700;border:1.5px solid var(--border);background:var(--surface);" onclick="toggleShowAllNews()">
+        ${state.showAllNews
+          ? '🔼 ย่อเหลือ 6 รายการล่าสุด'
+          : `📰 ข่าวสารและกิจกรรม เพิ่มเติม + (${filtered.length - maxInitial})`}
+      </button>
+    </div>
+  ` : '';
+
+  grid.innerHTML = cardsHtml + moreBtnHtml;
+}
+
+function toggleShowAllNews() {
+  state.showAllNews = !state.showAllNews;
+  renderPosts();
 }
 
 function openDetail(id) {
@@ -443,13 +529,99 @@ async function fetchLanInfo() {
   } catch {}
 }
 
-function openQRModal() {
-  const base = state.lanURL || window.location.origin;
+let currentQRMode = 'lan';
+let qr5GPollTimer = null;
+
+async function openQRModal() {
+  const pubInput = document.getElementById('public5GUrlInput');
+  try {
+    const f = window.coreFetch || window.fetch;
+    const res = await f('/api/tunnel/status');
+    const data = await res.json();
+    if (data && data.status === 'running' && data.public_url) {
+      localStorage.setItem('corechain_public_5g_url', data.public_url);
+    } else if (data && data.status !== 'running') {
+      localStorage.removeItem('corechain_public_5g_url');
+    }
+  } catch {}
+  if (pubInput) {
+    pubInput.value = localStorage.getItem('corechain_public_5g_url') || '';
+  }
+  setQRMode(currentQRMode);
+  openModal('qrModal');
+}
+
+async function setQRMode(mode) {
+  currentQRMode = mode;
+  if (qr5GPollTimer) { clearInterval(qr5GPollTimer); qr5GPollTimer = null; }
+  const tabLan = document.getElementById('qrTabLan');
+  const tab5G = document.getElementById('qrTab5G');
+  const box5G = document.getElementById('qr5GConfig');
+  const hint = document.getElementById('qrModeHint');
+  if (tabLan) tabLan.classList.toggle('active', mode === 'lan');
+  if (tab5G) tab5G.classList.toggle('active', mode === '5g');
+  if (box5G) box5G.classList.toggle('hidden', mode !== '5g');
+
   const wardParam = state.ward && state.ward !== 'all' ? `?ward=${encodeURIComponent(state.ward)}` : '';
+  let base = state.lanURL || (window.location.origin + '/b/webchain');
+
+  if (mode === '5g') {
+    let pub = (localStorage.getItem('corechain_public_5g_url') || '').trim().replace(/\/+$/, '');
+    if (!pub) {
+      // Auto-check and auto-start Cloudflare Tunnel from CoreChain
+      try {
+        const f = window.coreFetch || window.fetch;
+        const stRes = await f('/api/tunnel/status');
+        const st = await stRes.json();
+        if (st && st.status === 'running' && st.public_url) {
+          pub = st.public_url;
+          localStorage.setItem('corechain_public_5g_url', pub);
+          const pubInput = document.getElementById('public5GUrlInput');
+          if (pubInput) pubInput.value = pub;
+        } else {
+          if (st && st.status === 'stopped') {
+            await f('/api/tunnel/start', { method: 'POST' });
+          }
+          if (hint) hint.textContent = '⏳ กำลังเชื่อมต่อ Cloudflare 5G Tunnel อัตโนมัติ...';
+          qr5GPollTimer = setInterval(async () => {
+            try {
+              const pr = await f('/api/tunnel/status');
+              const pd = await pr.json();
+              if (pd && pd.status === 'running' && pd.public_url) {
+                clearInterval(qr5GPollTimer);
+                qr5GPollTimer = null;
+                localStorage.setItem('corechain_public_5g_url', pd.public_url);
+                const pubInput = document.getElementById('public5GUrlInput');
+                if (pubInput) pubInput.value = pd.public_url;
+                setQRMode('5g');
+              }
+            } catch {}
+          }, 1200);
+        }
+      } catch {}
+    }
+
+    if (pub) {
+      base = pub.endsWith('/b/webchain') ? pub : `${pub}/b/webchain`;
+      if (hint) hint.textContent = '✅ สแกน QR นี้เพื่อเข้าใช้งานผ่าน 📱นอกโรงพยาบาลได้ทันที';
+    }
+  } else {
+    if (hint) hint.textContent = 'สแกน QR Code ด้วยกล้องมือถือ (เชื่อมต่อ Wi-Fi/LAN เดียวกัน)';
+  }
+
   const target = `${base}/${state.dept}${wardParam}`;
   document.getElementById('qrUrlText').textContent = target;
   document.getElementById('qrImageBox').innerHTML = `<img src="/b/webchain/api/qr?url=${encodeURIComponent(target)}" alt="QR Code" style="width:200px;height:200px;" />`;
-  openModal('qrModal');
+}
+
+function savePublic5GUrl() {
+  const val = (document.getElementById('public5GUrlInput')?.value || '').trim();
+  if (val) {
+    localStorage.setItem('corechain_public_5g_url', val);
+  } else {
+    localStorage.removeItem('corechain_public_5g_url');
+  }
+  setQRMode('5g');
 }
 
 function applySavedTheme() {
@@ -521,9 +693,9 @@ function renderFloatingNotif() {
   if (state.notifCollapsed) {
     box.innerHTML = `
       <button class="notif-circle" onclick="toggleNotifPanel(false)" title="แจ้งเตือน: วันเกิด ${bdays.length} ท่าน • ข่าวด่วน ${urgents.length} รายการ">
-        <span style="font-size:20px;line-height:1;">${urgents.length > 0 ? '🔔' : '🎂'}</span>
-        <span style="font-size:10px;font-weight:700;margin-top:2px;">🎂${bdays.length}${urgents.length ? ' 🚨' + urgents.length : ''}</span>
         <span class="notif-circle-badge">${totalCount}</span>
+        <span>แจ้งเตือน</span>
+        <span style="font-size:14px;line-height:1;">${urgents.length > 0 ? '🔔' : '🎂'}</span>
       </button>
     `;
     return;
@@ -686,15 +858,11 @@ async function renderWardShowcase(wardCode) {
       </div>
 
       <div class="panel-card">
-        <h4>🪪 ทำเนียบบุคลากร (${roster.length} ท่าน)</h4>
-        <div class="roster-grid">
-          ${roster.map(r => `
-            <div class="roster-card">
-              ${r.photo_data ? `<img src="${r.photo_data}" alt="${escapeHtml(r.name)}" />` : `<div class="roster-avatar">👤</div>`}
-              <div class="roster-name">${escapeHtml(r.name)}</div>
-              <div class="roster-pos">${escapeHtml(r.position || '')}</div>
-            </div>
-          `).join('') || '<div style="color:var(--muted);font-size:13px;">ยังไม่มีรายชื่อในทำเนียบบุคลากร</div>'}
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+          <h4 style="margin:0;">🪪 ทำเนียบบุคลากร (${roster.length} ท่าน)</h4>
+        </div>
+        <div id="rosterPanelBody" style="margin-top:12px;">
+          ${renderGroupedRoster(roster)}
         </div>
       </div>
     </div>
@@ -867,43 +1035,449 @@ function addStatRow() {
   document.getElementById('wStatsBox').insertAdjacentHTML('beforeend', statRowHtml('', '', ''));
 }
 
-function renderEditingRoster() {
-  document.getElementById('wRosterBox').innerHTML = editingRoster.map((r, idx) => `
-    <div class="dynamic-row" style="background:#f8fafc;padding:8px;border-radius:8px;border:1px solid var(--border);flex-wrap:wrap;">
-      <input type="text" placeholder="ชื่อ-สกุล" value="${escapeHtml(r.name)}" onchange="editingRoster[${idx}].name=this.value" />
-      <input type="text" placeholder="ตำแหน่ง" value="${escapeHtml(r.position || '')}" onchange="editingRoster[${idx}].position=this.value" />
-      <input type="text" placeholder="เบอร์โทร (ไม่แสดงหน้าเว็บ)" value="${escapeHtml(r.phone || '')}" onchange="editingRoster[${idx}].phone=this.value" />
-      <input type="text" placeholder="E-Mail (ไม่แสดงหน้าเว็บ)" value="${escapeHtml(r.email || '')}" onchange="editingRoster[${idx}].email=this.value" />
-      <select style="max-width:110px;padding:6px;" onchange="editingRoster[${idx}].birth_month=parseInt(this.value||'0',10)">
-        <option value="0">เดือนเกิด</option>
-        ${THAI_MONTHS.slice(1).map((m, mi) => `<option value="${mi+1}" ${r.birth_month === mi+1 ? 'selected' : ''}>${m}</option>`).join('')}
-      </select>
-      <input type="number" placeholder="วัน" min="1" max="31" value="${r.birth_day || ''}" style="max-width:65px;padding:6px;border:1px solid var(--border);border-radius:8px;" onchange="editingRoster[${idx}].birth_day=parseInt(this.value||'0',10)" />
-      <input type="file" accept="image/*" style="max-width:150px;font-size:11px;" onchange="uploadRosterPhoto(event, ${idx})" />
-      <button type="button" class="btn btn-ghost btn-sm" onclick="editingRoster.splice(${idx},1); renderEditingRoster();">✕</button>
-    </div>
-  `).join('');
+function toggleRosterGroup(idx) {
+  const body = document.getElementById(`rosterGroupBody-${idx}`);
+  const btn = document.getElementById(`rosterGroupBtn-${idx}`);
+  if (!body) return;
+  const hidden = body.classList.toggle('hidden');
+  if (btn) btn.textContent = hidden ? 'แสดง ▾' : 'ซ่อน ▴';
 }
 
-function addRosterRow() {
-  editingRoster.push({ name: '', position: '', level: '', photo_data: '', phone: '', email: '', birth_month: 0, birth_day: 0 });
+function toggleRosterMore(idx, count) {
+  const more = document.getElementById(`rosterMore-${idx}`);
+  const btn = document.getElementById(`rosterMoreBtn-${idx}`);
+  if (!more) return;
+  const hidden = more.classList.toggle('hidden');
+  if (btn) btn.textContent = hidden ? `ท่านอื่น + (${count} ท่าน) ▾` : 'ซ่อนท่านอื่น ▴';
+}
+
+function closeRosterSpotlight() {
+  const existing = document.getElementById('rosterSpotlightOverlay');
+  if (existing) existing.remove();
+}
+
+function rosterPhotoTransform(flip, zoom) {
+  const z = (zoom && zoom > 0) ? zoom : 1;
+  if (!flip && z === 1) return '';
+  const sx = flip ? -z : z;
+  return `scale(${sx}, ${z})`;
+}
+
+function rosterPhotoStyle(posX, posY, flip, zoom) {
+  const z = (zoom && zoom > 0) ? zoom : 1;
+  const tf = rosterPhotoTransform(flip, z);
+  return `object-position:${posX}% ${posY}%;transform-origin:${posX}% ${posY}%;${tf ? `transform:${tf};` : ''}`;
+}
+
+function swapSpotlightPhoto(btn) {
+  const imgEl = document.getElementById('rosterSpotlightImg');
+  if (!imgEl) return;
+  const mainSrc = imgEl.dataset.main || '';
+  const altSrc = imgEl.dataset.alt || '';
+  if (!mainSrc || !altSrc) return;
+  const showingAlt = imgEl.dataset.mode === 'alt';
+  const nextMode = showingAlt ? 'main' : 'alt';
+  imgEl.style.opacity = '0.35';
+  setTimeout(() => {
+    imgEl.src = showingAlt ? mainSrc : altSrc;
+    imgEl.dataset.mode = nextMode;
+    const px = nextMode === 'alt' ? (imgEl.dataset.altPosx || '50') : (imgEl.dataset.mainPosx || '50');
+    const py = nextMode === 'alt' ? (imgEl.dataset.altPosy || '20') : (imgEl.dataset.mainPosy || '20');
+    const fl = nextMode === 'alt' ? (imgEl.dataset.altFlip === '1') : (imgEl.dataset.mainFlip === '1');
+    const zm = parseFloat(nextMode === 'alt' ? (imgEl.dataset.altZoom || '1') : (imgEl.dataset.mainZoom || '1')) || 1;
+    imgEl.style.objectPosition = `${px}% ${py}%`;
+    imgEl.style.transformOrigin = `${px}% ${py}%`;
+    imgEl.style.transform = rosterPhotoTransform(fl, zm);
+    imgEl.style.opacity = '1';
+    if (btn) btn.textContent = showingAlt ? '✨ ดูท่าตอนขยาย' : '🔄 ดูรูปปกติ';
+  }, 110);
+}
+
+function toggleRosterCardZoom(card) {
+  if (!card) return;
+  closeRosterSpotlight();
+  const img = card.querySelector('img');
+  const mainSrc = img ? (img.getAttribute('src') || '') : '';
+  const altSrc = card.getAttribute('data-alt') || '';
+  const posX = card.getAttribute('data-posx') || '50';
+  const posY = card.getAttribute('data-posy') || '20';
+  const flip = card.getAttribute('data-flip') === '1';
+  const zoom = parseFloat(card.getAttribute('data-zoom') || '1') || 1;
+  const altPosX = card.getAttribute('data-alt-posx') || '50';
+  const altPosY = card.getAttribute('data-alt-posy') || '20';
+  const altFlip = card.getAttribute('data-alt-flip') === '1';
+  const altZoom = parseFloat(card.getAttribute('data-alt-zoom') || '1') || 1;
+  const activeSrc = altSrc || mainSrc;
+  const curX = altSrc ? altPosX : posX;
+  const curY = altSrc ? altPosY : posY;
+  const curFlip = altSrc ? altFlip : flip;
+  const curZoom = altSrc ? altZoom : zoom;
+  const name = card.querySelector('.roster-name')?.textContent || '';
+  const pos = card.querySelector('.roster-pos')?.textContent || '';
+
+  const overlay = document.createElement('div');
+  overlay.id = 'rosterSpotlightOverlay';
+  overlay.className = 'roster-spotlight-backdrop';
+  overlay.onclick = closeRosterSpotlight;
+  overlay.innerHTML = `
+    <div class="roster-spotlight-card" onclick="closeRosterSpotlight()">
+      <div class="roster-spotlight-media">
+        ${activeSrc
+          ? `<img id="rosterSpotlightImg" src="${activeSrc}" data-main="${escapeHtml(mainSrc)}" data-alt="${escapeHtml(altSrc)}" data-main-posx="${posX}" data-main-posy="${posY}" data-main-flip="${flip ? '1' : '0'}" data-main-zoom="${zoom}" data-alt-posx="${altPosX}" data-alt-posy="${altPosY}" data-alt-flip="${altFlip ? '1' : '0'}" data-alt-zoom="${altZoom}" data-mode="${altSrc ? 'alt' : 'main'}" alt="${escapeHtml(name)}" style="${rosterPhotoStyle(curX, curY, curFlip, curZoom)}" />`
+          : `<div class="roster-spotlight-avatar">👤</div>`}
+      </div>
+      <div class="roster-spotlight-info">
+        <div class="roster-spotlight-name">${escapeHtml(name)}</div>
+        ${pos ? `<div class="roster-spotlight-pos">${escapeHtml(pos)}</div>` : ''}
+        ${mainSrc && altSrc ? `
+          <div style="margin-top:10px;">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="event.stopPropagation();swapSpotlightPhoto(this)">🔄 ดูรูปปกติ</button>
+          </div>
+        ` : ''}
+        <div class="roster-spotlight-hint">คลิกที่การ์ดหรือพื้นที่ว่างเพื่อย่อกลับ</div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function renderRosterCardHtml(r) {
+  const posX = (r.photo_pos_x !== undefined && r.photo_pos_x !== null) ? r.photo_pos_x : 50;
+  const posY = (r.photo_pos_y !== undefined && r.photo_pos_y !== null) ? r.photo_pos_y : 20;
+  const flip = !!r.photo_flip;
+  const zoom = (r.photo_zoom && r.photo_zoom > 0) ? r.photo_zoom : 1;
+  const altPosX = (r.photo_alt_pos_x !== undefined && r.photo_alt_pos_x !== null) ? r.photo_alt_pos_x : 50;
+  const altPosY = (r.photo_alt_pos_y !== undefined && r.photo_alt_pos_y !== null) ? r.photo_alt_pos_y : 20;
+  const altFlip = !!r.photo_alt_flip;
+  const altZoom = (r.photo_alt_zoom && r.photo_alt_zoom > 0) ? r.photo_alt_zoom : 1;
+  return `
+    <div class="roster-card" data-alt="${escapeHtml(r.photo_alt_data || '')}" data-posx="${posX}" data-posy="${posY}" data-flip="${flip ? '1' : '0'}" data-zoom="${zoom}" data-alt-posx="${altPosX}" data-alt-posy="${altPosY}" data-alt-flip="${altFlip ? '1' : '0'}" data-alt-zoom="${altZoom}" title="คลิกที่การ์ดเพื่อขยาย" onclick="toggleRosterCardZoom(this)">
+      ${r.photo_data
+        ? `<img src="${r.photo_data}" alt="${escapeHtml(r.name)}" style="${rosterPhotoStyle(posX, posY, flip, zoom)}" />`
+        : `<div class="roster-avatar">👤</div>`}
+      <div class="roster-name">${escapeHtml(r.name)}</div>
+      <div class="roster-pos">${escapeHtml(r.position || '')}</div>
+    </div>
+  `;
+}
+
+function renderGroupedRoster(roster) {
+  if (!roster || roster.length === 0) {
+    return '<div style="color:var(--muted);font-size:13px;">ยังไม่มีรายชื่อในทำเนียบบุคลากร</div>';
+  }
+  const orderedPositions = [
+    'พยาบาล',
+    'ผู้ช่วยพยาบาล',
+    'พนักงานการแพทย์',
+    'คนงาน',
+    'ธุระการ'
+  ];
+  function normalizePosition(rawPos) {
+    const pos = (rawPos || '').trim();
+    if (!pos) return 'ไม่ระบุตำแหน่ง';
+    if (pos.startsWith('พยาบาล')) return 'พยาบาล';
+    if (pos.startsWith('ผู้ช่วยพยาบาล')) return 'ผู้ช่วยพยาบาล';
+    if (pos.startsWith('พนักงานการแพทย์')) return 'พนักงานการแพทย์';
+    if (pos === 'คนงาน' || pos.startsWith('คนงาน')) return 'คนงาน';
+    if (pos === 'ธุรการ' || pos === 'ธุระการ' || pos.startsWith('ธุรการ') || pos.startsWith('ธุระการ')) return 'ธุระการ';
+    return pos;
+  }
+
+  const groupMap = {};
+  const extraOrder = [];
+  roster.forEach(r => {
+    const pos = normalizePosition(r.position);
+    if (!groupMap[pos]) {
+      groupMap[pos] = { position: pos, members: [] };
+      if (!orderedPositions.includes(pos)) {
+        extraOrder.push(pos);
+      }
+    }
+    groupMap[pos].members.push(r);
+  });
+
+  const groups = [
+    ...orderedPositions.filter(p => groupMap[p]).map(p => groupMap[p]),
+    ...extraOrder.map(p => groupMap[p])
+  ];
+
+  return groups.map((g, idx) => {
+    const isNurse = g.position === 'พยาบาล';
+    if (isNurse) {
+      const firstFour = g.members.slice(0, 4);
+      const rest = g.members.slice(4);
+      return `
+        <div style="margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:800;color:var(--primary);margin-bottom:8px;padding-bottom:4px;border-bottom:1px dashed var(--border);">
+            <span>📌 ${escapeHtml(g.position)} (${g.members.length} ท่าน)</span>
+          </div>
+          <div class="roster-grid">
+            ${firstFour.map(renderRosterCardHtml).join('')}
+          </div>
+          ${rest.length > 0 ? `
+            <div id="rosterMore-${idx}" class="hidden" style="margin-top:10px;">
+              <div class="roster-grid">
+                ${rest.map(renderRosterCardHtml).join('')}
+              </div>
+            </div>
+            <div style="margin-top:8px;">
+              <button type="button" id="rosterMoreBtn-${idx}" class="btn btn-ghost btn-sm" onclick="toggleRosterMore(${idx}, ${rest.length})">
+                ท่านอื่น + (${rest.length} ท่าน) ▾
+              </button>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    return `
+      <div style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer;padding:6px 10px;background:#f8fafc;border:1px solid var(--border);border-radius:10px;" onclick="toggleRosterGroup(${idx})">
+          <span style="font-size:13px;font-weight:700;color:var(--primary);">📌 ${escapeHtml(g.position)} (${g.members.length} ท่าน)</span>
+          <button type="button" id="rosterGroupBtn-${idx}" class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:12px;">แสดง ▾</button>
+        </div>
+        <div id="rosterGroupBody-${idx}" class="hidden" style="margin-top:10px;">
+          <div class="roster-grid">
+            ${g.members.map(renderRosterCardHtml).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderEditingRoster() {
+  document.getElementById('wRosterBox').innerHTML = `
+    <datalist id="rosterPosOptions">
+      <option value="พยาบาลวิชาชีพ"></option>
+      <option value="ผู้ช่วยพยาบาล"></option>
+      <option value="พนักงานการแพทย์"></option>
+      <option value="คนงาน"></option>
+      <option value="ธุระการ"></option>
+      <option value="หัวหน้าหอผู้ป่วย"></option>
+    </datalist>
+  ` + editingRoster.map((r, idx) => {
+    const posX = (r.photo_pos_x !== undefined && r.photo_pos_x !== null) ? r.photo_pos_x : 50;
+    const posY = (r.photo_pos_y !== undefined && r.photo_pos_y !== null) ? r.photo_pos_y : 20;
+    const flip = !!r.photo_flip;
+    return `
+    <div style="display:flex;gap:10px;align-items:center;background:#f8fafc;padding:10px 12px;border-radius:12px;border:1px solid var(--border);margin-bottom:8px;">
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <button type="button" class="btn btn-ghost btn-sm" style="padding:1px 6px;font-size:10px;line-height:1.2;" title="เลื่อนขึ้น" onclick="moveRosterRow(${idx}, -1)" ${idx === 0 ? 'disabled' : ''}>▲</button>
+        <button type="button" class="btn btn-ghost btn-sm" style="padding:1px 6px;font-size:10px;line-height:1.2;" title="เลื่อนลง" onclick="moveRosterRow(${idx}, 1)" ${idx === editingRoster.length - 1 ? 'disabled' : ''}>▼</button>
+      </div>
+
+      <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+        <label title="คลิกเพื่ออัปโหลดรูปปกติ" style="position:relative;width:56px;height:48px;border-radius:10px;border:1.5px dashed ${r.photo_data ? 'var(--primary)' : 'var(--border)'};background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;">
+          ${r.photo_data
+            ? `<img id="rosterPrevImg-${idx}" src="${r.photo_data}" alt="" style="width:100%;height:100%;object-fit:cover;${rosterPhotoStyle(posX, posY, flip, r.photo_zoom || 1)}" />`
+            : `<span style="font-size:16px;line-height:1;">📷</span><span style="font-size:9px;color:var(--muted);">รูปปกติ</span>`}
+          <input type="file" accept="image/*" class="hidden" onchange="uploadRosterPhoto(event, ${idx}, 'photo_data')" />
+        </label>
+
+        <div style="position:relative;">
+          <label title="คลิกเพื่ออัปโหลดรูปตอนขยาย (อีกท่า)" style="position:relative;width:48px;height:48px;border-radius:10px;border:1.5px dashed ${r.photo_alt_data ? 'var(--primary)' : 'var(--border)'};background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;">
+            ${r.photo_alt_data
+              ? `<img src="${r.photo_alt_data}" alt="" style="width:100%;height:100%;object-fit:cover;${rosterPhotoStyle(r.photo_alt_pos_x ?? 50, r.photo_alt_pos_y ?? 20, !!r.photo_alt_flip, r.photo_alt_zoom || 1)}" />`
+              : `<span style="font-size:16px;line-height:1;">✨</span><span style="font-size:9px;color:var(--primary);">อีกท่า</span>`}
+            <input type="file" accept="image/*" class="hidden" onchange="uploadRosterPhoto(event, ${idx}, 'photo_alt_data')" />
+          </label>
+          ${r.photo_alt_data ? `<button type="button" title="ลบรูปอีกท่า" onclick="editingRoster[${idx}].photo_alt_data='';renderEditingRoster();" style="position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;border:none;background:#ef4444;color:#fff;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;">✕</button>` : ''}
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <input type="text" placeholder="ชื่อ-สกุล" value="${escapeHtml(r.name)}" style="flex:1.4;min-width:140px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;" onchange="editingRoster[${idx}].name=this.value" />
+          <input type="text" list="rosterPosOptions" placeholder="ตำแหน่ง" value="${escapeHtml(r.position || '')}" style="flex:1.1;min-width:120px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;" onchange="editingRoster[${idx}].position=this.value" />
+          <select style="width:115px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;" onchange="editingRoster[${idx}].birth_month=parseInt(this.value||'0',10)">
+            <option value="0">เดือนเกิด</option>
+            ${THAI_MONTHS.slice(1).map((m, mi) => `<option value="${mi+1}" ${r.birth_month === mi+1 ? 'selected' : ''}>${m}</option>`).join('')}
+          </select>
+          <input type="number" placeholder="วัน" min="1" max="31" value="${r.birth_day || ''}" style="width:62px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;" onchange="editingRoster[${idx}].birth_day=parseInt(this.value||'0',10)" />
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+          <input type="text" placeholder="📞 เบอร์โทร (ไม่แสดงหน้าเว็บ)" value="${escapeHtml(r.phone || '')}" style="flex:1;min-width:130px;padding:5px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;font-size:12px;" onchange="editingRoster[${idx}].phone=this.value" />
+          <input type="text" placeholder="✉️ E-Mail (ไม่แสดงหน้าเว็บ)" value="${escapeHtml(r.email || '')}" style="flex:1;min-width:140px;padding:5px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;font-size:12px;" onchange="editingRoster[${idx}].email=this.value" />
+          ${r.photo_data ? `
+            <button type="button" class="btn btn-ghost btn-sm" style="background:#fff;border:1px solid var(--border);font-size:11.5px;padding:4px 10px;" onclick="openRosterPhotoAdjust(${idx}, 'main')">
+              🎛️ จัดรูปปกติ
+            </button>
+          ` : ''}
+          ${r.photo_alt_data ? `
+            <button type="button" class="btn btn-ghost btn-sm" style="background:#fff;border:1px solid var(--primary);color:var(--primary);font-size:11.5px;padding:4px 10px;" onclick="openRosterPhotoAdjust(${idx}, 'alt')">
+              ✨ จัดรูปอีกท่า
+            </button>
+          ` : ''}
+        </div>
+      </div>
+
+      <button type="button" class="btn btn-ghost btn-sm" title="ลบรายชื่อนี้" style="color:#ef4444;flex-shrink:0;" onclick="editingRoster.splice(${idx},1); renderEditingRoster();">✕</button>
+    </div>
+  `;}).join('');
+}
+
+function closeRosterPhotoAdjust() {
+  const el = document.getElementById('rosterAdjustOverlay');
+  if (el) el.remove();
   renderEditingRoster();
 }
 
-function uploadRosterPhoto(e, idx) {
+function openRosterPhotoAdjust(idx, target = 'main') {
+  const r = editingRoster[idx];
+  const isAlt = target === 'alt';
+  const imgSrc = isAlt ? r?.photo_alt_data : r?.photo_data;
+  if (!r || !imgSrc) return;
+  const old = document.getElementById('rosterAdjustOverlay');
+  if (old) old.remove();
+
+  const xKey = isAlt ? 'photo_alt_pos_x' : 'photo_pos_x';
+  const yKey = isAlt ? 'photo_alt_pos_y' : 'photo_pos_y';
+  const fKey = isAlt ? 'photo_alt_flip' : 'photo_flip';
+  const zKey = isAlt ? 'photo_alt_zoom' : 'photo_zoom';
+
+  let posX = (r[xKey] !== undefined && r[xKey] !== null) ? r[xKey] : 50;
+  let posY = (r[yKey] !== undefined && r[yKey] !== null) ? r[yKey] : 20;
+  let flip = !!r[fKey];
+  let zoom = (r[zKey] && r[zKey] >= 1) ? Number(r[zKey]) : 1;
+
+  const stageW = 240;
+  const stageH = isAlt ? 240 : 208;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'rosterAdjustOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9600;background:rgba(15,23,42,0.62);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.onclick = (e) => { if (e.target === overlay) closeRosterPhotoAdjust(); };
+  overlay.innerHTML = `
+    <div style="width:min(360px,92vw);background:#fff;border-radius:20px;padding:20px;box-shadow:0 24px 60px rgba(15,23,42,0.35);text-align:center;" onclick="event.stopPropagation()">
+      <div style="font-size:14px;font-weight:800;margin-bottom:4px;">${isAlt ? '✨ จัดตำแหน่งรูปตอนขยาย (อีกท่า)' : '🎛️ จัดตำแหน่งรูปปกติในการ์ด'}</div>
+      <div style="font-size:11.5px;color:var(--muted);margin-bottom:12px;">ลากบนภาพเพื่อเลื่อน • หมุนลูกกลิ้งเพื่อย่อ-ขยาย</div>
+
+      <div style="width:${stageW}px;margin:0 auto 14px;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:#f8fafc;box-shadow:0 6px 18px rgba(15,23,42,0.08);">
+        <div id="adjPhotoStage" style="width:${stageW}px;height:${stageH}px;overflow:hidden;cursor:grab;background:#e2e8f0;user-select:none;touch-action:none;">
+          <img id="adjPhotoImg" src="${imgSrc}" draggable="false" style="width:100%;height:100%;object-fit:cover;${rosterPhotoStyle(posX, posY, flip, zoom)}pointer-events:none;" />
+        </div>
+        <div style="padding:10px 8px;">
+          <div style="font-weight:700;font-size:14px;">${escapeHtml(r.name || 'ชื่อ-สกุล')}</div>
+          <div style="font-size:12px;color:var(--muted);">${escapeHtml(r.position || 'ตำแหน่ง')}</div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;text-align:left;margin-bottom:14px;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;">
+          <span style="width:76px;font-weight:600;">🔍 ย่อ-ขยาย</span>
+          <input id="adjSliderZ" type="range" min="1" max="2.5" step="0.05" value="${zoom}" style="flex:1;accent-color:var(--primary);" />
+          <span id="adjValZ" style="width:42px;text-align:right;font-weight:700;">${zoom.toFixed(2)}x</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;">
+          <span style="width:76px;font-weight:600;">↕ สูง-ต่ำ</span>
+          <input id="adjSliderY" type="range" min="0" max="100" value="${posY}" style="flex:1;accent-color:var(--primary);" />
+          <span id="adjValY" style="width:42px;text-align:right;font-weight:700;">${posY}%</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;">
+          <span style="width:76px;font-weight:600;">↔ ซ้าย-ขวา</span>
+          <input id="adjSliderX" type="range" min="0" max="100" value="${posX}" style="flex:1;accent-color:var(--primary);" />
+          <span id="adjValX" style="width:42px;text-align:right;font-weight:700;">${posX}%</span>
+        </label>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+        <button type="button" id="adjFlipBtn" class="btn ${flip ? 'btn-primary' : 'btn-ghost'} btn-sm">⇄ Flip Picture</button>
+        <button type="button" id="adjResetBtn" class="btn btn-ghost btn-sm">↺ รีเซ็ต</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="closeRosterPhotoAdjust()">✓ เสร็จสิ้น</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const imgEl = document.getElementById('adjPhotoImg');
+  const sliderX = document.getElementById('adjSliderX');
+  const sliderY = document.getElementById('adjSliderY');
+  const sliderZ = document.getElementById('adjSliderZ');
+  const valX = document.getElementById('adjValX');
+  const valY = document.getElementById('adjValY');
+  const valZ = document.getElementById('adjValZ');
+  const flipBtn = document.getElementById('adjFlipBtn');
+  const stage = document.getElementById('adjPhotoStage');
+
+  const sync = () => {
+    r[xKey] = posX;
+    r[yKey] = posY;
+    r[fKey] = flip;
+    r[zKey] = Number(zoom.toFixed(2));
+    imgEl.style.objectPosition = `${posX}% ${posY}%`;
+    imgEl.style.transformOrigin = `${posX}% ${posY}%`;
+    imgEl.style.transform = rosterPhotoTransform(flip, zoom);
+    sliderX.value = posX;
+    sliderY.value = posY;
+    sliderZ.value = zoom;
+    valX.textContent = `${posX}%`;
+    valY.textContent = `${posY}%`;
+    valZ.textContent = `${zoom.toFixed(2)}x`;
+    flipBtn.className = `btn ${flip ? 'btn-primary' : 'btn-ghost'} btn-sm`;
+  };
+
+  sliderX.oninput = () => { posX = parseInt(sliderX.value, 10); sync(); };
+  sliderY.oninput = () => { posY = parseInt(sliderY.value, 10); sync(); };
+  sliderZ.oninput = () => { zoom = parseFloat(sliderZ.value) || 1; sync(); };
+  flipBtn.onclick = () => { flip = !flip; sync(); };
+  document.getElementById('adjResetBtn').onclick = () => { posX = 50; posY = 20; zoom = 1; flip = false; sync(); };
+  stage.onwheel = (e) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.08 : -0.08;
+    zoom = Math.max(1, Math.min(2.5, Number((zoom + delta).toFixed(2))));
+    sync();
+  };
+
+  let dragging = false, startX = 0, startY = 0, origX = posX, origY = posY;
+  const onDown = (cx, cy) => { dragging = true; startX = cx; startY = cy; origX = posX; origY = posY; stage.style.cursor = 'grabbing'; };
+  const onMove = (cx, cy) => {
+    if (!dragging) return;
+    const dx = cx - startX;
+    const dy = cy - startY;
+    posX = Math.max(0, Math.min(100, Math.round(origX - dx * 0.5)));
+    posY = Math.max(0, Math.min(100, Math.round(origY - dy * 0.5)));
+    sync();
+  };
+  const onUp = () => { dragging = false; stage.style.cursor = 'grab'; };
+
+  stage.onmousedown = (e) => onDown(e.clientX, e.clientY);
+  window.addEventListener('mousemove', (e) => onMove(e.clientX, e.clientY));
+  window.addEventListener('mouseup', onUp);
+  stage.ontouchstart = (e) => { if (e.touches[0]) onDown(e.touches[0].clientX, e.touches[0].clientY); };
+  stage.ontouchmove = (e) => { if (e.touches[0]) { e.preventDefault(); onMove(e.touches[0].clientX, e.touches[0].clientY); } };
+  stage.ontouchend = onUp;
+}
+
+function moveRosterRow(idx, dir) {
+  const target = idx + dir;
+  if (target < 0 || target >= editingRoster.length) return;
+  const tmp = editingRoster[idx];
+  editingRoster[idx] = editingRoster[target];
+  editingRoster[target] = tmp;
+  renderEditingRoster();
+}
+
+function addRosterRow() {
+  editingRoster.push({ name: '', position: '', level: '', photo_data: '', photo_alt_data: '', phone: '', email: '', birth_month: 0, birth_day: 0 });
+  renderEditingRoster();
+}
+
+function uploadRosterPhoto(e, idx, field = 'photo_data') {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
     const img = new Image();
     img.onload = () => {
-      const maxW = 400;
+      const maxW = field === 'photo_alt_data' ? 720 : 400;
       const scale = img.width > maxW ? maxW / img.width : 1;
       const canvas = document.createElement('canvas');
       canvas.width = img.width * scale;
       canvas.height = img.height * scale;
       canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      editingRoster[idx].photo_data = canvas.toDataURL('image/jpeg', 0.8);
+      editingRoster[idx][field] = canvas.toDataURL('image/jpeg', 0.85);
+      renderEditingRoster();
     };
     img.src = ev.target.result;
   };

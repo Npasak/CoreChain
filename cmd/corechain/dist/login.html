@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CoreChain HUB — One Core. Infinite Blocks.</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/svg+xml" href="/corechain-icon.svg" />
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-2: #f1f5f9;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #64748b;
+      --primary: #0f172a;
+      --accent: #0284c7;
+      --danger: #e11d48;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'Prompt', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at top right, #e0f2fe 0%, #f8fafc 48%, #f1f5f9 100%);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+    }
+    .login-topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 24px;
+    }
+    .brand-mini {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      font-size: 16px;
+      letter-spacing: -0.02em;
+    }
+    .brand-mini img {
+      width: 28px;
+      height: 28px;
+    }
+    .hub-top-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+      transition: all 0.15s ease;
+    }
+    .hub-top-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      transform: translateY(-1px);
+    }
+    .login-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .login-card {
+      width: min(420px, 100%);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px 28px;
+      box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
+    }
+    .login-head {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .login-head img {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 10px;
+    }
+    .login-head h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+    }
+    .login-head p {
+      margin: 4px 0 0;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+    label.field-lbl {
+      display: block;
+      font-size: 12.5px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 11px 13px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      font-size: 14px;
+      margin-bottom: 14px;
+      background: #f8fafc;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+    input:focus {
+      border-color: var(--accent);
+      background: #ffffff;
+    }
+    .dest-section {
+      margin: 6px 0 14px;
+    }
+    .dest-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    .dest-pill {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 6px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #f8fafc;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+    .dest-pill input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .dest-pill.active {
+      border-color: var(--accent);
+      background: #e0f2fe;
+      color: #0369a1;
+      box-shadow: 0 2px 8px rgba(2, 132, 199, 0.14);
+    }
+    .save-default-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 18px;
+      cursor: pointer;
+    }
+    .save-default-row input {
+      width: 15px;
+      height: 15px;
+      accent-color: var(--accent);
+    }
+    .btn-submit {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 12px;
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 14.5px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s ease, transform 0.1s ease;
+    }
+    .btn-submit:hover { opacity: 0.92; }
+    .btn-submit:active { transform: scale(0.99); }
+    .err-box {
+      background: #fff1f2;
+      border: 1px solid #fecdd3;
+      color: var(--danger);
+      font-size: 12.5px;
+      padding: 9px 12px;
+      border-radius: 10px;
+      margin-bottom: 14px;
+      display: none;
+    }
+    .session-note {
+      margin-top: 16px;
+      text-align: center;
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <header class="login-topbar">
+    <div class="brand-mini">
+      <img src="/corechain-icon.svg" alt="CoreChain HUB" />
+      <span>CoreChain HUB</span>
+    </div>
+    <a href="/?hub=1" class="hub-top-btn">⛓️ CoreChain HUB</a>
+  </header>
+
+  <main class="login-wrap">
+    <div class="login-card">
+      <div class="login-head">
+        <img src="/corechain-icon.svg" alt="CoreChain HUB" />
+        <h1>CoreChain HUB</h1>
+        <p>One Core. Infinite Blocks. • เข้าสู่ระบบเพื่อใช้งานทุก Block</p>
+      </div>
+
+      <form id="gateLoginForm">
+        <label class="field-lbl" for="username">ชื่อผู้ใช้หรืออีเมล</label>
+        <input type="text" id="username" required autocomplete="username" placeholder="เช่น admin หรือ email" autofocus />
+
+        <label class="field-lbl" for="password">รหัสผ่าน</label>
+        <input type="password" id="password" required autocomplete="current-password" placeholder="••••••" />
+
+        <div class="dest-section">
+          <label class="field-lbl">เลือกหน้าเริ่มต้นหลังเข้าสู่ระบบ</label>
+          <div class="dest-grid" id="destGrid">
+            <label class="dest-pill" data-dest="/b/webchain/special-2">
+              <input type="radio" name="dest" value="/b/webchain/special-2" />
+              <span>🏥</span>
+              <span>Special 2</span>
+            </label>
+            <label class="dest-pill" data-dest="/b/webchain/special-3">
+              <input type="radio" name="dest" value="/b/webchain/special-3" />
+              <span>🏥</span>
+              <span>Special 3</span>
+            </label>
+          </div>
+        </div>
+
+        <label class="save-default-row">
+          <input type="checkbox" id="saveDefaultChk" checked />
+          <span>ตั้งเป็นค่าพื้นฐานของการเข้าใช้ครั้งต่อไป</span>
+        </label>
+
+        <div id="errBox" class="err-box"></div>
+        <button type="submit" class="btn-submit" id="btnSubmit">เข้าสู่ระบบ</button>
+      </form>
+
+      <div class="session-note">
+        🔒 เพื่อความปลอดภัย เมื่อปิดหน้าต่างโปรแกรมจะต้องเข้าสู่ระบบใหม่อีกครั้ง
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const DEFAULT_KEY = 'corechain_default_dest';
+    const params = new URLSearchParams(window.location.search);
+    const nextParam = params.get('next') || '';
+    const normalizeWardDest = (d) => (d === '/b/webchain/special-3' ? '/b/webchain/special-3' : '/b/webchain/special-2');
+    let savedDest = normalizeWardDest(localStorage.getItem(DEFAULT_KEY));
+
+    function selectDest(val) {
+      const targetVal = normalizeWardDest(val);
+      document.querySelectorAll('.dest-pill').forEach(el => {
+        const match = el.dataset.dest === targetVal;
+        el.classList.toggle('active', match);
+        const radio = el.querySelector('input');
+        if (radio) radio.checked = match;
+      });
+    }
+
+    selectDest(savedDest);
+    fetch('/api/auth/default-dest').then(r => r.json()).then(d => {
+      if (d && d.dest && (d.dest === '/b/webchain/special-2' || d.dest === '/b/webchain/special-3')) {
+        savedDest = d.dest;
+      }
+      const initialDest = (nextParam.includes('/special-3') && '/b/webchain/special-3') ||
+                          (nextParam.includes('/special-2') && '/b/webchain/special-2') ||
+                          savedDest;
+      selectDest(initialDest);
+    }).catch(() => {});
+
+    document.querySelectorAll('.dest-pill').forEach(el => {
+      el.addEventListener('click', () => selectDest(el.dataset.dest));
+    });
+
+    // If already logged in, go straight to target
+    fetch('/api/auth/me').then(r => r.json()).then(d => {
+      if (d && d.user) {
+        const target = (nextParam && nextParam !== '/') ? nextParam : savedDest;
+        window.location.replace(target);
+      }
+    }).catch(() => {});
+
+    document.getElementById('gateLoginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById('errBox');
+      const btn = document.getElementById('btnSubmit');
+      errBox.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = 'กำลังเข้าสู่ระบบ...';
+
+      const chosen = document.querySelector('input[name="dest"]:checked')?.value || '/';
+      const saveDefault = document.getElementById('saveDefaultChk').checked;
+      if (saveDefault) {
+        localStorage.setItem(DEFAULT_KEY, chosen);
+      }
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: document.getElementById('username').value.trim(),
+            password: document.getElementById('password').value
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errBox.textContent = data.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+          errBox.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = 'เข้าสู่ระบบ';
+          return;
+        }
+        if (saveDefault) {
+          await fetch('/api/auth/default-dest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dest: chosen })
+          }).catch(() => {});
+        }
+        const target = nextParam.startsWith('/?hub=1')
+          ? '/'
+          : ((nextParam && nextParam !== '/' && !nextParam.startsWith('/?') && !saveDefault) ? nextParam : chosen);
+        window.location.replace(target);
+      } catch (err) {
+        errBox.textContent = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้';
+        errBox.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'เข้าสู่ระบบ';
+      }
+    });
+  </script>
+</body>
+</html>

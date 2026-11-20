@@ -3640,22 +3640,38 @@ async function loadSyncInfo(populateInputs = false) {
     `;
   }
 
-  // วิธีที่ 1: แสดง QR Code และลิงก์ LAN
+  // วิธีที่ 1: แสดง QR Code และลิงก์ (ทั้ง 5G / นอกโรงพยาบาล และ Wi-Fi หน่วยงาน)
   const lanList = document.getElementById('syncLanUrlList');
   if (lanList) {
-    const urls = (res.lan_urls && res.lan_urls.length > 0) ? res.lan_urls : [window.location.origin];
-    lanList.innerHTML = urls.map(u => {
-      const qrSrc = `/b/learnchain/api/sync/qr?url=${encodeURIComponent(u)}`;
+    let tunnelUrl = '';
+    try {
+      const cf = window.coreFetch || window.fetch;
+      const tr = await cf('/api/tunnel/status');
+      const td = await tr.json();
+      if (td && td.status === 'running' && td.public_url) {
+        tunnelUrl = td.public_url.replace(/\/+$/, '') + '/b/learnchain';
+      }
+    } catch {}
+
+    const baseUrls = (res.lan_urls && res.lan_urls.length > 0) ? res.lan_urls : [window.location.origin];
+    const items = [];
+    if (tunnelUrl) {
+      items.push({ label: '📱นอกโรงพยาบาล', url: tunnelUrl });
+    }
+    baseUrls.forEach(u => items.push({ label: '📶 Wi-Fi หน่วยงาน', url: u }));
+
+    lanList.innerHTML = items.map(it => {
+      const qrSrc = `/b/learnchain/api/sync/qr?url=${encodeURIComponent(it.url)}`;
       return `
         <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap; background:var(--bg); border:1px solid var(--border); padding:0.75rem 1rem; border-radius:10px;">
           <div style="background:#ffffff; padding:6px; border-radius:8px; border:1px solid #cbd5e1; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.06);">
-            <img src="${qrSrc}" alt="QR Code ${escapeHtml(u)}" style="width:128px; height:128px; display:block;" />
+            <img src="${qrSrc}" alt="QR Code ${escapeHtml(it.url)}" style="width:128px; height:128px; display:block;" />
           </div>
           <div style="flex:1; min-width:200px; display:flex; flex-direction:column; gap:0.45rem;">
-            <div style="font-size:0.78rem; color:var(--muted); font-weight:600;">📱 สแกน QR Code ด้วยมือถือ / iPad หรือเปิดลิงก์:</div>
-            <code style="font-size:0.95rem; font-weight:700; color:var(--primary); word-break:break-all;">${escapeHtml(u)}</code>
+            <div style="font-size:0.78rem; color:var(--muted); font-weight:700;">${it.label}</div>
+            <code style="font-size:0.95rem; font-weight:700; color:var(--primary); word-break:break-all;">${escapeHtml(it.url)}</code>
             <div style="display:flex; gap:0.5rem; margin-top:0.2rem;">
-              <button type="button" class="btn btn-sm btn-wallet" onclick="copySyncLanUrl('${escapeHtml(u)}')">📋 คัดลอกลิงก์</button>
+              <button type="button" class="btn btn-sm btn-wallet" onclick="copySyncLanUrl('${escapeHtml(it.url)}')">📋 คัดลอกลิงก์</button>
             </div>
           </div>
         </div>
