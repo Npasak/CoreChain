@@ -2,7 +2,7 @@
   "id": "docchain",
   "name": "DocChain",
   "description": "แหล่งรวมเอกสารหน่วยงาน (SOP, คู่มือ, แบบฟอร์ม, ระเบียบ) พร้อมระบบ SHA-256 Hash และ Sync แบบ Decentralized",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "icon": "📄",
   "color": "#0ea5e9",
   "entrypoint": "block.exe",

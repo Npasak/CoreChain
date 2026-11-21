@@ -7,6 +7,7 @@ import (
 	"elearning-sbt/database"
 	"elearning-sbt/handlers"
 	"elearning-sbt/models"
+	"elearning-sbt/version"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -83,7 +84,7 @@ func setupCoreChainBridge(app *fiber.App, env blocksdk.RuntimeEnv) {
 
 	blocksdk.RegisterStandardRoutes(app, blocksdk.StandardOptions{
 		BlockID: env.BlockID,
-		Version: "v1.3.22",
+		Version: version.Version,
 		StatsProvider: func() blocksdk.BlockStats {
 			var courses, lessons, certs int64
 			database.DB.Model(&models.Course{}).Count(&courses)

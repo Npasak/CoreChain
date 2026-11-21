@@ -454,6 +454,8 @@ func buildOfflineAssistResponse(mode, prompt string, hw NPUHardwareInfo) string 
 	)
 }
 
+var BlockVersion = "1.0.0"
+
 func main() {
 	env := blocksdk.LoadRuntimeEnv("ai", "8084")
 	db, err := blocksdk.OpenBlockDB(env.DBPath)
@@ -473,7 +475,7 @@ func main() {
 
 	blocksdk.RegisterStandardRoutes(app, blocksdk.StandardOptions{
 		BlockID: env.BlockID,
-		Version: "1.0.0",
+		Version: BlockVersion,
 		StatsProvider: func() blocksdk.BlockStats {
 			var count int64
 			db.Model(&ChatLog{}).Count(&count)

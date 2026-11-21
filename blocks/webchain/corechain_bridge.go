@@ -10,6 +10,7 @@ import (
 	"corechain/sdk/blocksdk"
 	"webchain/database"
 	"webchain/models"
+	"webchain/version"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -63,7 +64,7 @@ func setupCoreChainBridge(app *fiber.App, env blocksdk.RuntimeEnv) {
 
 	blocksdk.RegisterStandardRoutes(app, blocksdk.StandardOptions{
 		BlockID: env.BlockID,
-		Version: "v1.1.0",
+		Version: version.Version,
 		StatsProvider: func() blocksdk.BlockStats {
 			var postCount, wardCount int64
 			database.DB.Model(&models.Post{}).Count(&postCount)

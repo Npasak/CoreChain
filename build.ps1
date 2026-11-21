@@ -28,19 +28,24 @@ try {
     Write-Host "Note: CoreChain.exe is currently running; updated CoreChain-win-arm.exe instead." -ForegroundColor DarkYellow
 }
 
-Write-Host "[3/5] Building & packing webchain.Blz..." -ForegroundColor Yellow
+$webVer   = (Get-Content "blocks\webchain\manifest.json"   -Raw | ConvertFrom-Json).version
+$learnVer = (Get-Content "blocks\learnchain\manifest.json" -Raw | ConvertFrom-Json).version
+$docVer   = (Get-Content "blocks\docchain\manifest.json"   -Raw | ConvertFrom-Json).version
+$aiVer    = (Get-Content "blocks\ai\manifest.json"         -Raw | ConvertFrom-Json).version
+
+Write-Host "[3/5] Building & packing webchain.Blz (v$webVer)..." -ForegroundColor Yellow
 $webStage = "_build_tmp\webchain"
 New-Item -ItemType Directory -Force -Path $webStage | Out-Null
 Copy-Item -Force "blocks\webchain\manifest.json" "$webStage\manifest.json"
 $BuildDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-$webLdFlags = "-H=windowsgui -s -w -X webchain/version.Version=v1.1.0 -X webchain/version.BuildDate=$BuildDate"
+$webLdFlags = "-H=windowsgui -s -w -X webchain/version.Version=v$webVer -X webchain/version.BuildDate=$BuildDate"
 Push-Location blocks\webchain
 go build -ldflags="$webLdFlags" -o "..\..\$webStage\block.exe" .
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Pop-Location
 go run ./cmd/blzpack $webStage "packages\webchain.Blz"
 
-Write-Host "[4/5] Building & packing learnchain.Blz..." -ForegroundColor Yellow
+Write-Host "[4/5] Building & packing learnchain.Blz (v$learnVer)..." -ForegroundColor Yellow
 $learnStage = "_build_tmp\learnchain"
 New-Item -ItemType Directory -Force -Path $learnStage | Out-Null
 Copy-Item -Force "blocks\learnchain\manifest.json" "$learnStage\manifest.json"
@@ -50,7 +55,7 @@ if (-not $learnGasUrl -and (Test-Path ".env")) {
     $gasLine = Get-Content ".env" | Where-Object { $_ -match "^LEARNCHAIN_GAS_URL=" } | Select-Object -First 1
     if ($gasLine) { $learnGasUrl = ($gasLine -split "=", 2)[1].Trim().Trim('"').Trim("'") }
 }
-$learnLdFlags = "-s -w -X elearning-sbt/version.Version=v1.3.22 -X elearning-sbt/version.Commit=corechain -X elearning-sbt/version.BuildDate=$BuildDate"
+$learnLdFlags = "-s -w -X elearning-sbt/version.Version=v$learnVer -X elearning-sbt/version.Commit=corechain -X elearning-sbt/version.BuildDate=$BuildDate"
 if ($learnGasUrl) {
     $learnLdFlags += " -X elearning-sbt/handlers.DefaultGASSignalingURL=$learnGasUrl"
 }
@@ -60,18 +65,19 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Pop-Location
 go run ./cmd/blzpack $learnStage "packages\learnchain.Blz"
 
-Write-Host "[5/6] Building & packing docchain.Blz..." -ForegroundColor Yellow
+Write-Host "[5/6] Building & packing docchain.Blz (v$docVer)..." -ForegroundColor Yellow
 $docStage = "_build_tmp\docchain"
 New-Item -ItemType Directory -Force -Path $docStage | Out-Null
 Copy-Item -Force "blocks\docchain\manifest.json" "$docStage\manifest.json"
-go build -ldflags="-s -w" -o "$docStage\block.exe" ./blocks/docchain
+go build -ldflags="-s -w -X main.BlockVersion=$docVer" -o "$docStage\block.exe" ./blocks/docchain
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 go run ./cmd/blzpack $docStage "packages\docchain.Blz"
 
-Write-Host "[6/6] Building & packing ai.Blz..." -ForegroundColor Yellow
+Write-Host "[6/6] Building & packing ai.Blz (v$aiVer)..." -ForegroundColor Yellow
 $aiStage = "_build_tmp\ai"
 New-Item -ItemType Directory -Force -Path $aiStage | Out-Null
 Copy-Item -Force "blocks\ai\manifest.json" "$aiStage\manifest.json"
-go build -ldflags="-H=windowsgui -s -w" -o "$aiStage\block.exe" ./blocks/ai
+go build -ldflags="-H=windowsgui -s -w -X main.BlockVersion=$aiVer" -o "$aiStage\block.exe" ./blocks/ai
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 go run ./cmd/blzpack $aiStage "packages\ai.Blz"
 
@@ -96,28 +102,28 @@ $manifestObj = @{
     blocks = @(
         @{
             id = "webchain"
-            version = "1.1.0"
+            version = $webVer
             min_core_version = "1.2.0"
             download_url = "https://github.com/Npasak/CoreChain/releases/latest/download/webchain.Blz"
             sha256 = $webSha
         },
         @{
             id = "learnchain"
-            version = "1.3.22"
+            version = $learnVer
             min_core_version = "1.2.0"
             download_url = "https://github.com/Npasak/CoreChain/releases/latest/download/learnchain.Blz"
             sha256 = $learnSha
         },
         @{
             id = "docchain"
-            version = "1.0.0"
+            version = $docVer
             min_core_version = "1.2.0"
             download_url = "https://github.com/Npasak/CoreChain/releases/latest/download/docchain.Blz"
             sha256 = $docSha
         },
         @{
             id = "ai"
-            version = "1.0.0"
+            version = $aiVer
             min_core_version = "1.2.0"
             download_url = "https://github.com/Npasak/CoreChain/releases/latest/download/ai.Blz"
             sha256 = $aiSha

@@ -2,7 +2,7 @@
   "id": "ai",
   "name": "AI NPU",
   "description": "ผู้ช่วย AI ประมวลผลบน Qualcomm Hexagon NPU (สรุปข่าว, วิเคราะห์เอกสาร, ช่วยออกข้อสอบ)",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "min_core_version": "1.2.0",
   "icon": "🧠",
   "color": "#7c3aed",

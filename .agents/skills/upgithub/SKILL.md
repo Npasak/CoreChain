@@ -9,8 +9,10 @@ description: >-
 
 When the user says **`upgithub`**, follow these steps:
 
-1. **Bump Versions (if code changed in this round):**
-   - `CoreChain`: bump `Version` in `internal/config/config.go` (and `manifest.json` via `build.ps1`).
+1. **Bump Versions Consistently Across CoreChain & ALL Blocks (Mandatory on every `upgithub`):**
+   - **CoreChain:** bump `Version` in `internal/config/config.go` (e.g., `1.2.7` -> `1.2.8`).
+   - **Every Block (`webchain`, `docchain`, `ai`, `learnchain`, and any future blocks):** bump `"version"` in `blocks/<id>/manifest.json` consistently (e.g., patch +1 for all blocks). `build.ps1` automatically reads `blocks/<id>/manifest.json` and injects the exact version into each `block.exe` via `-ldflags` and into root `manifest.json`.
+   - Also keep `blocks/webchain/version/version.go` and `blocks/learnchain/version/version.go` aligned if needed (though `build.ps1` overrides them via `-ldflags`).
 2. **Privacy & Build-Time Secret Injection Rule (Applies to ALL Current & Future Blocks):**
    - **Never hardcode personal IDs, URLs, or secrets in tracked source files** (`*.go`, `*.gs`, `*.js`, `*.html`, `*.json`, etc.) — including Google Drive Folder IDs (`PICSYNC_ROOT_FOLDER_ID`, `COVERS_DRIVE_FOLDER_ID`), personal Google Apps Script URLs (`https://script.google.com/macros/s/AKfycb.../exec`), API keys, internal LAN IPs, or personal emails/accounts.
    - **Inject needed defaults into `.Blz` at build time:** Store personal/deployment defaults (such as `LEARNCHAIN_GAS_URL` or future block sync/endpoint variables) in `.env` (gitignored), declare them as `var ... = ""` in Go, and inject them in `build.ps1` via `-ldflags "-X ..."` when building each `.Blz` package.
@@ -21,6 +23,7 @@ When the user says **`upgithub`**, follow these steps:
 4. **Pre-Push Verify & Clean:**
    - Ensure `.gitignore` tracks `CoreChain-win-arm.exe`, `CoreChain-win-x64.exe`, and `packages/*.Blz`, while excluding `CoreChain.exe`, `*.zip`, `.env`, databases (`*.db*`), `*.sync.json`, `backups/`, `data/`, `installed_blocks/`, and `Pic/` media.
    - Audit staged/tracked text files before pushing to ensure zero hardcoded personal Drive IDs, GAS `AKfycb...` URLs, or `.sync.json` files are included.
-5. **Commit & Push CoreChain:**
+5. **Commit, Push & Tag Release on CoreChain:**
    - Commit & push `CoreChain` (`https://github.com/Npasak/CoreChain.git`) on `main`.
-   - Report the build outputs, version numbers, and git push results.
+   - Create and push tag `v<CoreChainVersion>` (`git tag -f v<CoreChainVersion> && git push origin v<CoreChainVersion>`) so GitHub Releases publishes the updated `.Blz` packages and `manifest.json`.
+   - Report the build outputs, version numbers, and git push/tag results.

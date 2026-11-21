@@ -49,6 +49,8 @@ type Document struct {
 	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
+var BlockVersion = "1.0.0"
+
 func main() {
 	env := blocksdk.LoadRuntimeEnv("docchain", "8083")
 	db, err := blocksdk.OpenBlockDB(env.DBPath)
@@ -70,7 +72,7 @@ func main() {
 
 	blocksdk.RegisterStandardRoutes(app, blocksdk.StandardOptions{
 		BlockID: env.BlockID,
-		Version: "1.0.0",
+		Version: BlockVersion,
 		StatsProvider: func() blocksdk.BlockStats {
 			var count int64
 			db.Model(&Document{}).Count(&count)
