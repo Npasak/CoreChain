@@ -58,8 +58,8 @@ func LoadConfig() *Config {
 		SMTPFrom:         getEnv("SMTP_FROM", "noreply@learnchain.io"),
 		IPFSGateway:       getEnv("IPFS_GATEWAY", "https://ipfs.io/ipfs/"),
 		GoogleClientID:    getEnv("GOOGLE_CLIENT_ID", ""),
-		UpdateRepo:        getEnv("UPDATE_REPO", "Npasak/Learnchain"),
-		UpdateManifestURL: getEnv("UPDATE_MANIFEST_URL", ""),
+		UpdateRepo:        getEnv("UPDATE_REPO", "Npasak/CoreChain"),
+		UpdateManifestURL: getEnv("UPDATE_MANIFEST_URL", "https://github.com/Npasak/CoreChain/releases/latest/download/manifest.json"),
 	}
 
 	return AppConfig

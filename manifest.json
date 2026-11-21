@@ -2,37 +2,37 @@
     "blocks":  [
                    {
                        "download_url":  "https://github.com/Npasak/CoreChain/releases/latest/download/webchain.Blz",
-                       "sha256":  "1d06433e160a790f2e44af5d1179779be48fa95fe61059b18256df322077408f",
+                       "sha256":  "173061c65f4e9942f1ff84e53b1163ee5994a6032c968046a99bd68330403bbc",
                        "id":  "webchain",
                        "min_core_version":  "1.2.0",
                        "version":  "1.1.0"
                    },
                    {
                        "download_url":  "https://github.com/Npasak/CoreChain/releases/latest/download/learnchain.Blz",
-                       "sha256":  "44a4f8bfd001afc38d0b17427a28fae5324d1b881e75b75b86f4110e22cd32bf",
+                       "sha256":  "061e179aeed4a6bc50d8ff8aacec88b50ae7eb7ff871d5b69d61527cef158232",
                        "id":  "learnchain",
                        "min_core_version":  "1.2.0",
                        "version":  "1.3.22"
                    },
                    {
                        "download_url":  "https://github.com/Npasak/CoreChain/releases/latest/download/docchain.Blz",
-                       "sha256":  "19192ff2ea8fa21fcf7b597fdeecd088610dcb32ae40d94239086a7ec5360e71",
+                       "sha256":  "30fde05340da3478136362dd76190b95b4f1839ad113cd213e42a37722414531",
                        "id":  "docchain",
                        "min_core_version":  "1.2.0",
                        "version":  "1.0.0"
                    },
                    {
                        "download_url":  "https://github.com/Npasak/CoreChain/releases/latest/download/ai.Blz",
-                       "sha256":  "b36665f6e90480da4e99cd0ef2a492bc535c994967392243a742e198024c9dd1",
+                       "sha256":  "bf140c879d425f04017c84cc4d3c80d7339ba94a02a8b4c55e61174e8713e258",
                        "id":  "ai",
                        "min_core_version":  "1.2.0",
                        "version":  "1.0.0"
                    }
                ],
-    "core_arm_sha256":  "b6a5a5c11e792487c417967c885ad2dfd7f31cab096de50144cd374ae78cdbd7",
-    "published_at":  "2026-11-21T18:45:06Z",
+    "core_arm_sha256":  "895478802debc08160b10098d644913058fac8ea99e58c2038ac3ae8a88abfd4",
+    "published_at":  "2026-11-21T18:52:54Z",
     "core_version":  "1.2.7",
     "core_x64_url":  "https://github.com/Npasak/CoreChain/releases/latest/download/CoreChain-win-x64.exe",
-    "core_x64_sha256":  "b87a817b518360130fa14714ad088783fa49c5450daa097852dd7088430933be",
+    "core_x64_sha256":  "7fab535973c1815c4f2a372a585107c6fd28cb9c4d8abe55b270a05494a0a87c",
     "core_arm_url":  "https://github.com/Npasak/CoreChain/releases/latest/download/CoreChain-win-arm.exe"
 }

@@ -99,6 +99,13 @@ type customManifest struct {
 	HTMLURL      string `json:"html_url"`
 	PublishedAt  string `json:"published_at"`
 	AssetName    string `json:"asset_name"`
+	CoreVersion  string `json:"core_version"`
+	Blocks       []struct {
+		ID          string `json:"id"`
+		Version     string `json:"version"`
+		DownloadURL string `json:"download_url"`
+		SHA256      string `json:"sha256"`
+	} `json:"blocks"`
 }
 
 func (s *UpdaterService) checkCustomManifest(ctx context.Context, res *UpdateCheckResult) (*UpdateCheckResult, error) {
@@ -123,6 +130,21 @@ func (s *UpdaterService) checkCustomManifest(ctx context.Context, res *UpdateChe
 		return nil, fmt.Errorf("invalid update manifest JSON: %w", err)
 	}
 
+	if m.Version == "" && len(m.Blocks) > 0 {
+		for _, blk := range m.Blocks {
+			if blk.ID == "learnchain" {
+				m.Version = blk.Version
+				m.DownloadURL = blk.DownloadURL
+				m.SHA256 = blk.SHA256
+				m.AssetName = "learnchain.Blz"
+				if m.HTMLURL == "" {
+					m.HTMLURL = "https://github.com/Npasak/CoreChain/releases/latest"
+				}
+				break
+			}
+		}
+	}
+
 	res.LatestVersion = m.Version
 	res.DownloadURL = m.DownloadURL
 	res.SHA256 = strings.ToLower(strings.TrimSpace(m.SHA256))
@@ -131,6 +153,9 @@ func (s *UpdaterService) checkCustomManifest(ctx context.Context, res *UpdateChe
 	res.PublishedAt = m.PublishedAt
 	res.AssetName = m.AssetName
 	res.UpdateAvailable = version.IsNewer(version.Version, m.Version)
+	if !res.UpdateAvailable && res.Message == "" {
+		res.Message = "คุณใช้งานเวอร์ชันล่าสุดอยู่แล้ว (ตรวจสอบจาก CoreChain GitHub Releases)"
+	}
 	return res, nil
 }
 
