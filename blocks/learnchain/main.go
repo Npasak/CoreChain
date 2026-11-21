@@ -114,13 +114,21 @@ func main() {
 	api := app.Group("/api")
 	api.Use(middleware.UserContextMiddleware())
 
-	// Auth & Users
+	centralizedAuthMsg := func(c *fiber.Ctx) error {
+		return c.Status(fiber.StatusGone).JSON(fiber.Map{
+			"success": false,
+			"message": "ระบบสมาชิกย้ายไปจัดการที่ CoreChain HUB แล้ว",
+			"hub_url": "/?open=users",
+		})
+	}
+
+	// Auth & Users (Centralized in CoreChain HUB)
 	api.Get("/version", versionHandler.GetVersion)
 	api.Get("/update/check", versionHandler.CheckUpdate)
 	api.Post("/update/apply", versionHandler.ApplyUpdate)
 	api.Get("/auth/config", authHandler.GetAuthConfig)
 	api.Get("/auth/check-roles", authHandler.CheckEmailRoles)
-	api.Post("/auth/register", authHandler.Register)
+	api.Post("/auth/register", centralizedAuthMsg)
 	api.Post("/auth/google", authHandler.GoogleLogin)
 	api.Post("/auth/connect", authHandler.ConnectWallet)
 	api.Get("/auth/me", authHandler.GetCurrentUser)
@@ -173,11 +181,11 @@ func main() {
 	managerGroup.Post("/assign", managerHandler.AssignLearner)
 	managerGroup.Delete("/assign", managerHandler.UnassignLearner)
 	managerGroup.Post("/report/email", managerHandler.SendReportEmail)
-	managerGroup.Post("/managers", managerHandler.AddManagerFromCreator)
-	managerGroup.Delete("/managers/:id", managerHandler.RemoveManager)
-	managerGroup.Get("/members", managerHandler.ListMembers)
-	managerGroup.Put("/members/role", managerHandler.UpdateMemberRole)
-	managerGroup.Delete("/members", managerHandler.DeleteMember)
+	managerGroup.Post("/managers", centralizedAuthMsg)
+	managerGroup.Delete("/managers/:id", centralizedAuthMsg)
+	managerGroup.Get("/members", centralizedAuthMsg)
+	managerGroup.Put("/members/role", centralizedAuthMsg)
+	managerGroup.Delete("/members", centralizedAuthMsg)
 	managerGroup.Get("/lifecycle", lifecycleHandler.GetLifecycleOverview)
 	managerGroup.Put("/lifecycle/:lessonId/age", lifecycleHandler.SetBlockAgeDays)
 	managerGroup.Get("/lifecycle/export", lifecycleHandler.ExportExpiredBlocks)

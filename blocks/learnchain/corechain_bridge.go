@@ -22,21 +22,26 @@ func setupCoreChainBridge(app *fiber.App, env blocksdk.RuntimeEnv) {
 	// Bridge CoreChain Unified Auth user into LearnChain's X-User-ID / Locals
 	app.Use(func(c *fiber.Ctx) error {
 		if cu := blocksdk.GetCoreUser(c); cu != nil {
+			role := "learner"
+			if cu.GlobalRole == "admin" || cu.GlobalRole == "manager" || cu.GlobalRole == "god" || cu.BlockRole == "admin" || cu.BlockRole == "manager" {
+				role = "manager"
+			} else if cu.BlockRole == "creator" {
+				role = "creator"
+			}
+
 			var u models.User
 			err := database.DB.Where("LOWER(email) = ? OR wallet_address = ?", cu.Email, cu.WalletAddr).First(&u).Error
 			if err != nil && cu.Username != "" {
 				err = database.DB.Where("LOWER(email) = ?", cu.Username).First(&u).Error
 			}
 			if err != nil {
-				role := "learner"
-				if cu.GlobalRole == "admin" || cu.GlobalRole == "god" {
-					role = "manager"
-				} else if cu.BlockRole != "" && cu.BlockRole != "user" {
-					role = cu.BlockRole
-				}
 				wallet := cu.WalletAddr
 				if wallet == "" {
-					wallet = "cc-" + cu.UserID[:8]
+					idPrefix := cu.UserID
+					if len(idPrefix) > 8 {
+						idPrefix = idPrefix[:8]
+					}
+					wallet = "cc-" + idPrefix
 				}
 				email := cu.Email
 				if email == "" {
@@ -50,6 +55,17 @@ func setupCoreChainBridge(app *fiber.App, env blocksdk.RuntimeEnv) {
 					Ward:          cu.Ward,
 				}
 				_ = database.DB.Create(&u).Error
+			} else if cu.GlobalRole != "god" && cu.Username != "therunrock" && (u.Role != role || (cu.DisplayName != "" && u.Name != cu.DisplayName) || u.Ward != cu.Ward) {
+				u.Role = role
+				if cu.DisplayName != "" {
+					u.Name = cu.DisplayName
+				}
+				u.Ward = cu.Ward
+				_ = database.DB.Model(&u).Updates(map[string]any{
+					"role": u.Role,
+					"name": u.Name,
+					"ward": u.Ward,
+				}).Error
 			}
 			if cu.GlobalRole == "god" || cu.Username == "therunrock" {
 				c.Request().Header.Set("X-User-ID", fmt.Sprintf("%d", handlers.SecretAdminUserID))

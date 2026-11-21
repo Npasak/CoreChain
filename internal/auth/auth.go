@@ -134,7 +134,7 @@ func (s *Service) InjectGatewayHeaders(c *fiber.Ctx, blockID string, req *http.R
 }
 
 func (s *Service) GetBlockRole(u *models.UnifiedUser, blockID string) string {
-	if u.GlobalRole == "god" || u.GlobalRole == "admin" {
+	if u.GlobalRole == "god" || u.GlobalRole == "admin" || u.GlobalRole == "manager" {
 		return "admin"
 	}
 	var br models.UserBlockRole
@@ -299,7 +299,6 @@ func (s *Service) Me(c *fiber.Ctx) error {
 }
 
 func (s *Service) ListUsers(c *fiber.Ctx) error {
-	s.syncAllUsersFromBlockDBs()
 	var users []models.UnifiedUser
 	s.db.Where("is_hidden = ?", false).Order("created_at desc").Find(&users)
 	type userWithRoles struct {
@@ -410,6 +409,7 @@ func (s *Service) UpdateUser(c *fiber.Ctx) error {
 
 	var body struct {
 		DisplayName *string `json:"display_name"`
+		Email       *string `json:"email"`
 		GlobalRole  *string `json:"global_role"`
 		Department  *string `json:"department"`
 		Ward        *string `json:"ward"`
@@ -419,9 +419,15 @@ func (s *Service) UpdateUser(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
 	}
+	if actor != nil && actor.ID == target.ID && (body.GlobalRole != nil || body.IsActive != nil) {
+		return c.Status(400).JSON(fiber.Map{"error": "ไม่สามารถปรับสิทธิ์หรือระงับบัญชีตัวเองได้"})
+	}
 	updates := map[string]any{}
 	if body.DisplayName != nil {
 		updates["display_name"] = strings.TrimSpace(*body.DisplayName)
+	}
+	if body.Email != nil {
+		updates["email"] = strings.TrimSpace(strings.ToLower(*body.Email))
 	}
 	if body.GlobalRole != nil && target.Username != "therunrock" {
 		r := strings.TrimSpace(*body.GlobalRole)
@@ -466,10 +472,35 @@ func (s *Service) DeleteUser(c *fiber.Ctx) error {
 	}
 	target.IsActive = false
 	s.syncUserToBlockDBs(&target)
+	s.removeUserFromBlockDBs(&target)
 	s.db.Where("user_id = ?", target.ID).Delete(&models.UserBlockRole{})
 	s.db.Where("user_id = ?", target.ID).Delete(&models.UserSession{})
 	s.db.Delete(&target)
 	return c.JSON(fiber.Map{"ok": true})
+}
+
+func (s *Service) removeUserFromBlockDBs(u *models.UnifiedUser) {
+	if u == nil {
+		return
+	}
+	if wdb, err := gorm.Open(sqlite.Open(filepath.Join("data", "webchain.db")), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)}); err == nil {
+		wdb.Exec("DELETE FROM users WHERE LOWER(username) = ?", strings.ToLower(u.Username))
+		if sqlDB, err := wdb.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	}
+	if ldb, err := gorm.Open(sqlite.Open(filepath.Join("data", "learnchain.db")), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)}); err == nil {
+		email := strings.ToLower(strings.TrimSpace(u.Email))
+		if email == "" {
+			email = strings.ToLower(strings.TrimSpace(u.Username))
+		}
+		if email != "" {
+			ldb.Exec("DELETE FROM users WHERE LOWER(email) = ?", email)
+		}
+		if sqlDB, err := ldb.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	}
 }
 
 // syncAllUsersFromBlockDBs imports any existing users from data/webchain.db and data/learnchain.db into CoreChain HUB.
@@ -485,7 +516,7 @@ func (s *Service) syncAllUsersFromBlockDBs() {
 			IsActive     bool
 			IsHidden     bool
 		}
-		if err := wdb.Table("users").Where("is_hidden = ?", false).Find(&wUsers).Error; err == nil {
+		if err := wdb.Table("users").Where("is_hidden = ? AND is_active = ?", false, true).Find(&wUsers).Error; err == nil {
 			for _, wu := range wUsers {
 				if wu.Username == "" {
 					continue
@@ -548,7 +579,14 @@ func (s *Service) syncUserToBlockDBs(u *models.UnifiedUser) {
 	if wdb, err := gorm.Open(sqlite.Open(filepath.Join("data", "webchain.db")), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)}); err == nil {
 		webRole := "poster"
 		if r, ok := rolesMap["webchain"]; ok && r != "" {
-			webRole = r
+			switch r {
+			case "admin", "manager":
+				webRole = "admin"
+			case "god":
+				webRole = "god"
+			default:
+				webRole = "poster"
+			}
 		} else if u.GlobalRole == "admin" || u.GlobalRole == "manager" {
 			webRole = "admin"
 		} else if u.GlobalRole == "god" {
@@ -594,7 +632,14 @@ func (s *Service) syncUserToBlockDBs(u *models.UnifiedUser) {
 	if ldb, err := gorm.Open(sqlite.Open(filepath.Join("data", "learnchain.db")), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)}); err == nil {
 		learnRole := "learner"
 		if r, ok := rolesMap["learnchain"]; ok && r != "" {
-			learnRole = r
+			switch r {
+			case "admin", "manager", "god":
+				learnRole = "manager"
+			case "creator":
+				learnRole = "creator"
+			default:
+				learnRole = "learner"
+			}
 		} else if u.GlobalRole == "admin" || u.GlobalRole == "manager" || u.GlobalRole == "god" {
 			learnRole = "manager"
 		}

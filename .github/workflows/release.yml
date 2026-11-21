@@ -15,16 +15,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Create GitHub Release with Binaries & ZIP Bundles
+      - name: Create GitHub Release with Binaries & .Blz Packages
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           files: |
             CoreChain-win-arm.exe
             CoreChain-win-x64.exe
-            CoreChain-win-arm64.zip
-            CoreChain-win-x64.zip
             packages/webchain.Blz
             packages/learnchain.Blz
             packages/docchain.Blz
+            packages/ai.Blz
             manifest.json

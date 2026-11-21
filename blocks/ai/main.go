@@ -528,6 +528,17 @@ func main() {
 		},
 	})
 
+	requireAIAdmin := func(c *fiber.Ctx) error {
+		u := blocksdk.GetCoreUser(c)
+		if u == nil {
+			return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+		}
+		if u.BlockRole != "admin" && u.BlockRole != "manager" && u.GlobalRole != "admin" && u.GlobalRole != "manager" && u.GlobalRole != "god" {
+			return c.Status(403).JSON(fiber.Map{"error": "เฉพาะผู้จัดการ (Admin) เท่านั้นที่ปรับแต่งหรือควบคุมโมเดล AI ได้"})
+		}
+		return c.Next()
+	}
+
 	api := app.Group("/api")
 	api.Get("/npu/status", func(c *fiber.Ctx) error {
 		if c.Query("refresh") == "1" {
@@ -537,10 +548,10 @@ func main() {
 		}
 		cfg := getAIConfig(db)
 		hw := scanNPUHardware(cfg)
-		return c.JSON(fiber.Map{"hardware": hw, "config": cfg})
+		return c.JSON(fiber.Map{"hardware": hw, "config": cfg, "user": blocksdk.GetCoreUser(c)})
 	})
 
-	api.Post("/npu/benchmark", func(c *fiber.Ctx) error {
+	api.Post("/npu/benchmark", requireAIAdmin, func(c *fiber.Ctx) error {
 		cfg := getAIConfig(db)
 		hw := scanNPUHardware(cfg)
 		if !hw.QNNReady || hw.PythonPath == "" {
@@ -575,7 +586,7 @@ print(json.dumps({'ok': True, 'provider': 'QNNExecutionProvider (Hexagon HTP NPU
 		return c.Send(bytes.TrimSpace(out))
 	})
 
-	api.Post("/npu/llm/start", func(c *fiber.Ctx) error {
+	api.Post("/npu/llm/start", requireAIAdmin, func(c *fiber.Ctx) error {
 		startNPUServer(env.DataDir)
 		hwMu.Lock()
 		lastHWScan = time.Time{}
@@ -583,7 +594,7 @@ print(json.dumps({'ok': True, 'provider': 'QNNExecutionProvider (Hexagon HTP NPU
 		return c.JSON(fiber.Map{"ok": true})
 	})
 
-	api.Post("/npu/llm/stop", func(c *fiber.Ctx) error {
+	api.Post("/npu/llm/stop", requireAIAdmin, func(c *fiber.Ctx) error {
 		npuMu.Lock()
 		if npuCmd != nil && npuCmd.Process != nil {
 			_ = npuCmd.Process.Kill()
@@ -596,7 +607,7 @@ print(json.dumps({'ok': True, 'provider': 'QNNExecutionProvider (Hexagon HTP NPU
 		return c.JSON(fiber.Map{"ok": true})
 	})
 
-	api.Post("/config", func(c *fiber.Ctx) error {
+	api.Post("/config", requireAIAdmin, func(c *fiber.Ctx) error {
 		var body AIConfig
 		if err := c.BodyParser(&body); err != nil {
 			return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
@@ -658,7 +669,7 @@ print(json.dumps({'ok': True, 'provider': 'QNNExecutionProvider (Hexagon HTP NPU
 		})
 	})
 
-	api.Post("/llama/start", func(c *fiber.Ctx) error {
+	api.Post("/llama/start", requireAIAdmin, func(c *fiber.Ctx) error {
 		var body struct {
 			ModelPath string `json:"model_path"`
 		}
@@ -707,7 +718,7 @@ print(json.dumps({'ok': True, 'provider': 'QNNExecutionProvider (Hexagon HTP NPU
 		return c.JSON(fiber.Map{"ok": true, "ready": ready, "endpoint": "http://127.0.0.1:8099"})
 	})
 
-	api.Post("/llama/stop", func(c *fiber.Ctx) error {
+	api.Post("/llama/stop", requireAIAdmin, func(c *fiber.Ctx) error {
 		llamaMu.Lock()
 		if llamaCmd != nil && llamaCmd.Process != nil {
 			_ = llamaCmd.Process.Kill()

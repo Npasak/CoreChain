@@ -370,16 +370,8 @@ function renderPosts() {
 
     const imgs = getPostImages(p);
     let coverHtml = '';
-    if (imgs.length >= 2) {
-      const shown = imgs.slice(0, 4);
-      const extra = imgs.length - 4;
-      coverHtml = `<div class="pb-collage">
-        ${shown.map((src, idx) => idx === 3 && extra > 0
-          ? `<div class="pb-collage-more"><img src="${src}" loading="lazy" /><div class="pb-collage-badge">+${extra}</div></div>`
-          : `<img src="${src}" loading="lazy" />`).join('')}
-      </div>`;
-    } else if (imgs[0]) {
-      coverHtml = `<img src="${imgs[0]}" alt="${escapeHtml(p.title)}" loading="lazy" />`;
+    if (imgs[0]) {
+      coverHtml = `<img src="${imgs[0]}" alt="${escapeHtml(p.title)}" style="object-position:center 20%;" loading="lazy" />`;
     } else {
       coverHtml = `<div class="pb-placeholder ${p.category}">
            <div class="pb-placeholder-icon">${catIcon}</div>
@@ -938,11 +930,23 @@ function renderWardEditForm() {
       <div class="form-row">
         <div>
           <label>ภาพถ่ายหัวหน้า (ครึ่งตัว - มุมขวา)</label>
-          <input type="file" accept="image/*" onchange="uploadLeaderPhoto(event)" />
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <input type="file" accept="image/*" onchange="uploadLeaderPhoto(event)" style="flex:1;min-width:160px;" />
+            <button type="button" id="btnEditLeaderExisting" class="btn btn-ghost btn-sm ${editingLeaderPhoto ? '' : 'hidden'}" onclick="editExistingLeaderPhoto()">✏️ ปรับภาพ</button>
+          </div>
+          <div id="leaderPhotoPreviewBox" style="margin-top:6px;">
+            ${editingLeaderPhoto ? `<img src="${editingLeaderPhoto}" style="height:64px;border-radius:8px;border:1px solid var(--border);object-fit:cover;">` : ''}
+          </div>
         </div>
         <div>
           <label>ภาพประกอบใหญ่ (ภาพหมู่)</label>
-          <input type="file" accept="image/*" onchange="uploadWardCover(event)" />
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <input type="file" accept="image/*" onchange="uploadWardCover(event)" style="flex:1;min-width:160px;" />
+            <button type="button" id="btnEditCoverExisting" class="btn btn-ghost btn-sm ${editingWardCover ? '' : 'hidden'}" onclick="editExistingWardCover()">✏️ ปรับภาพ</button>
+          </div>
+          <div id="wardCoverPreviewBox" style="margin-top:6px;">
+            ${editingWardCover ? `<img src="${editingWardCover}" style="height:64px;max-width:180px;border-radius:8px;border:1px solid var(--border);object-fit:cover;">` : ''}
+          </div>
         </div>
       </div>
       <label>กลุ่มผู้ป่วยที่รับ</label>
@@ -977,19 +981,38 @@ function uploadLeaderPhoto(e) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
-    const img = new Image();
-    img.onload = () => {
-      const maxW = 600;
-      const scale = img.width > maxW ? maxW / img.width : 1;
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width * scale;
-      canvas.height = img.height * scale;
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      editingLeaderPhoto = canvas.toDataURL('image/jpeg', 0.85);
-    };
-    img.src = ev.target.result;
+    openWardImageEditor({
+      title: '🖼️ แก้ไขภาพถ่ายหัวหน้า (ครึ่งตัว - มุมขวา)',
+      src: ev.target.result,
+      targetW: 450,
+      targetH: 525,
+      quality: 0.88,
+      onApply: (dataUrl) => {
+        editingLeaderPhoto = dataUrl;
+        const box = document.getElementById('leaderPhotoPreviewBox');
+        if (box) box.innerHTML = `<img src="${dataUrl}" style="height:64px;border-radius:8px;border:1px solid var(--border);object-fit:cover;">`;
+        document.getElementById('btnEditLeaderExisting')?.classList.remove('hidden');
+      }
+    });
   };
   reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function editExistingLeaderPhoto() {
+  if (!editingLeaderPhoto) return;
+  openWardImageEditor({
+    title: '🖼️ แก้ไขภาพถ่ายหัวหน้า (ครึ่งตัว - มุมขวา)',
+    src: editingLeaderPhoto,
+    targetW: 450,
+    targetH: 525,
+    quality: 0.88,
+    onApply: (dataUrl) => {
+      editingLeaderPhoto = dataUrl;
+      const box = document.getElementById('leaderPhotoPreviewBox');
+      if (box) box.innerHTML = `<img src="${dataUrl}" style="height:64px;border-radius:8px;border:1px solid var(--border);object-fit:cover;">`;
+    }
+  });
 }
 
 function uploadWardCover(e) {
@@ -997,19 +1020,233 @@ function uploadWardCover(e) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
-    const img = new Image();
-    img.onload = () => {
-      const maxW = 1200;
-      const scale = img.width > maxW ? maxW / img.width : 1;
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width * scale;
-      canvas.height = img.height * scale;
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      editingWardCover = canvas.toDataURL('image/jpeg', 0.82);
-    };
-    img.src = ev.target.result;
+    openWardImageEditor({
+      title: '🖼️ แก้ไขภาพประกอบใหญ่ (ภาพหมู่)',
+      src: ev.target.result,
+      targetW: 1200,
+      targetH: 480,
+      quality: 0.85,
+      onApply: (dataUrl) => {
+        editingWardCover = dataUrl;
+        const box = document.getElementById('wardCoverPreviewBox');
+        if (box) box.innerHTML = `<img src="${dataUrl}" style="height:64px;max-width:180px;border-radius:8px;border:1px solid var(--border);object-fit:cover;">`;
+        document.getElementById('btnEditCoverExisting')?.classList.remove('hidden');
+      }
+    });
   };
   reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function editExistingWardCover() {
+  if (!editingWardCover) return;
+  openWardImageEditor({
+    title: '🖼️ แก้ไขภาพประกอบใหญ่ (ภาพหมู่)',
+    src: editingWardCover,
+    targetW: 1200,
+    targetH: 480,
+    quality: 0.85,
+    onApply: (dataUrl) => {
+      editingWardCover = dataUrl;
+      const box = document.getElementById('wardCoverPreviewBox');
+      if (box) box.innerHTML = `<img src="${dataUrl}" style="height:64px;max-width:180px;border-radius:8px;border:1px solid var(--border);object-fit:cover;">`;
+    }
+  });
+}
+
+function openWardImageEditor({ title, src, targetW, targetH, quality = 0.85, onApply }) {
+  const existing = document.getElementById('wardImgEditorOverlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'wardImgEditorOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9700;background:rgba(15,23,42,0.68);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:16px;';
+
+  overlay.innerHTML = `
+    <div style="background:var(--surface,#fff);color:var(--text,#0f172a);border:1px solid var(--border,#e2e8f0);border-radius:16px;width:min(680px,96vw);max-height:92vh;overflow-y:auto;padding:18px;box-shadow:0 20px 50px rgba(0,0,0,0.35);display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <strong style="font-size:15px;">${escapeHtml(title)}</strong>
+        <button type="button" id="wieCloseBtn" class="btn btn-ghost btn-sm">✕</button>
+      </div>
+
+      <div style="background:#f8fafc;border:1px solid var(--border,#e2e8f0);border-radius:12px;padding:10px;display:flex;justify-content:center;align-items:center;overflow:hidden;">
+        <canvas id="wieCanvas" width="${targetW}" height="${targetH}" style="max-width:100%;max-height:300px;border-radius:8px;cursor:grab;touch-action:none;background:#ffffff;box-shadow:0 2px 10px rgba(15,23,42,0.08);"></canvas>
+      </div>
+      <div style="font-size:11.5px;color:var(--muted);text-align:center;">💡 ลากบนภาพเพื่อเลื่อนตำแหน่ง หรือใช้ปุ่ม/แถบเลื่อนด้านล่าง</div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;background:var(--bg,#f8fafc);padding:12px;border-radius:12px;border:1px solid var(--border,#e2e8f0);">
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:4px;">
+            <span>🔍 ย่อ-ขยาย (Zoom)</span>
+            <span id="wieZoomVal">100%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button type="button" class="btn btn-ghost btn-sm" id="wieZoomOut">－</button>
+            <input type="range" id="wieZoom" min="0.5" max="3" step="0.02" value="1" style="flex:1;" />
+            <button type="button" class="btn btn-ghost btn-sm" id="wieZoomIn">＋</button>
+          </div>
+        </div>
+
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:4px;">
+            <span>☀️ เพิ่มแสง (Brightness)</span>
+            <span id="wieBrightVal">100%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button type="button" class="btn btn-ghost btn-sm" id="wieBrightDown">🌙</button>
+            <input type="range" id="wieBright" min="50" max="200" step="2" value="100" style="flex:1;" />
+            <button type="button" class="btn btn-ghost btn-sm" id="wieBrightUp">☀️</button>
+          </div>
+        </div>
+
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:4px;">
+            <span>⬅️➡️ เลื่อน ซ้าย-ขวา</span>
+            <span id="wiePanXVal">0 px</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button type="button" class="btn btn-ghost btn-sm" id="wieLeft">◀</button>
+            <input type="range" id="wiePanX" min="-600" max="600" step="2" value="0" style="flex:1;" />
+            <button type="button" class="btn btn-ghost btn-sm" id="wieRight">▶</button>
+          </div>
+        </div>
+
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:4px;">
+            <span>⬆️⬇️ เลื่อน บน-ล่าง</span>
+            <span id="wiePanYVal">0 px</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button type="button" class="btn btn-ghost btn-sm" id="wieUp">▲</button>
+            <input type="range" id="wiePanY" min="-600" max="600" step="2" value="0" style="flex:1;" />
+            <button type="button" class="btn btn-ghost btn-sm" id="wieDown">▼</button>
+          </div>
+        </div>
+
+        <div style="grid-column:1/-1;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:2px;">
+          <span style="font-size:12px;font-weight:700;">🪞 กลับด้าน (Flip):</span>
+          <button type="button" class="btn btn-ghost btn-sm" id="wieFlipX">↔️ พลิกซ้าย-ขวา</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="wieFlipY">↕️ พลิกบน-ล่าง</button>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+        <button type="button" id="wieResetBtn" class="btn btn-ghost btn-sm">↺ รีเซ็ตค่าเดิม</button>
+        <div style="display:flex;gap:8px;">
+          <button type="button" id="wieCancelBtn" class="btn btn-ghost">ยกเลิก</button>
+          <button type="button" id="wieApplyBtn" class="btn btn-primary">✅ ใช้ภาพนี้</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const canvas = overlay.querySelector('#wieCanvas');
+  const ctx = canvas.getContext('2d');
+  const zoomEl = overlay.querySelector('#wieZoom');
+  const brightEl = overlay.querySelector('#wieBright');
+  const panXEl = overlay.querySelector('#wiePanX');
+  const panYEl = overlay.querySelector('#wiePanY');
+
+  const ed = { zoom: 1, bright: 100, panX: 0, panY: 0, flipX: false, flipY: false };
+  const img = new Image();
+  const flipXBtn = overlay.querySelector('#wieFlipX');
+  const flipYBtn = overlay.querySelector('#wieFlipY');
+
+  function syncFlipButtons() {
+    flipXBtn.classList.toggle('btn-primary', ed.flipX);
+    flipXBtn.classList.toggle('btn-ghost', !ed.flipX);
+    flipYBtn.classList.toggle('btn-primary', ed.flipY);
+    flipYBtn.classList.toggle('btn-ghost', !ed.flipY);
+  }
+
+  function draw() {
+    if (!img.width || !img.height) return;
+    ctx.save();
+    ctx.clearRect(0, 0, targetW, targetH);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, targetW, targetH);
+
+    // Base cover-fit scale so image fills frame at zoom = 1
+    const baseScale = Math.max(targetW / img.width, targetH / img.height);
+    const drawW = img.width * baseScale * ed.zoom;
+    const drawH = img.height * baseScale * ed.zoom;
+
+    ctx.translate(targetW / 2 + ed.panX, targetH / 2 + ed.panY);
+    ctx.scale(ed.flipX ? -1 : 1, ed.flipY ? -1 : 1);
+    ctx.filter = `brightness(${ed.bright}%)`;
+    ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+    ctx.restore();
+
+    overlay.querySelector('#wieZoomVal').textContent = `${Math.round(ed.zoom * 100)}%`;
+    overlay.querySelector('#wieBrightVal').textContent = `${ed.bright}%`;
+    overlay.querySelector('#wiePanXVal').textContent = `${Math.round(ed.panX)} px`;
+    overlay.querySelector('#wiePanYVal').textContent = `${Math.round(ed.panY)} px`;
+    zoomEl.value = ed.zoom;
+    brightEl.value = ed.bright;
+    panXEl.value = ed.panX;
+    panYEl.value = ed.panY;
+    syncFlipButtons();
+  }
+
+  img.onload = draw;
+  img.src = src;
+
+  zoomEl.oninput = () => { ed.zoom = parseFloat(zoomEl.value); draw(); };
+  brightEl.oninput = () => { ed.bright = parseInt(brightEl.value, 10); draw(); };
+  panXEl.oninput = () => { ed.panX = parseFloat(panXEl.value); draw(); };
+  panYEl.oninput = () => { ed.panY = parseFloat(panYEl.value); draw(); };
+
+  overlay.querySelector('#wieZoomOut').onclick = () => { ed.zoom = Math.max(0.5, +(ed.zoom - 0.1).toFixed(2)); draw(); };
+  overlay.querySelector('#wieZoomIn').onclick = () => { ed.zoom = Math.min(3, +(ed.zoom + 0.1).toFixed(2)); draw(); };
+  overlay.querySelector('#wieBrightDown').onclick = () => { ed.bright = Math.max(50, ed.bright - 10); draw(); };
+  overlay.querySelector('#wieBrightUp').onclick = () => { ed.bright = Math.min(200, ed.bright + 10); draw(); };
+  overlay.querySelector('#wieLeft').onclick = () => { ed.panX = Math.max(-600, ed.panX - 15); draw(); };
+  overlay.querySelector('#wieRight').onclick = () => { ed.panX = Math.min(600, ed.panX + 15); draw(); };
+  overlay.querySelector('#wieUp').onclick = () => { ed.panY = Math.max(-600, ed.panY - 15); draw(); };
+  overlay.querySelector('#wieDown').onclick = () => { ed.panY = Math.min(600, ed.panY + 15); draw(); };
+  flipXBtn.onclick = () => { ed.flipX = !ed.flipX; draw(); };
+  flipYBtn.onclick = () => { ed.flipY = !ed.flipY; draw(); };
+
+  overlay.querySelector('#wieResetBtn').onclick = () => {
+    ed.zoom = 1; ed.bright = 100; ed.panX = 0; ed.panY = 0; ed.flipX = false; ed.flipY = false;
+    draw();
+  };
+
+  // Drag on canvas to pan
+  let dragging = false, lastX = 0, lastY = 0;
+  canvas.addEventListener('pointerdown', (ev) => {
+    dragging = true;
+    lastX = ev.clientX;
+    lastY = ev.clientY;
+    canvas.style.cursor = 'grabbing';
+    canvas.setPointerCapture(ev.pointerId);
+  });
+  canvas.addEventListener('pointermove', (ev) => {
+    if (!dragging) return;
+    const rect = canvas.getBoundingClientRect();
+    const ratioX = rect.width ? targetW / rect.width : 1;
+    const ratioY = rect.height ? targetH / rect.height : 1;
+    ed.panX = Math.max(-600, Math.min(600, ed.panX + (ev.clientX - lastX) * ratioX));
+    ed.panY = Math.max(-600, Math.min(600, ed.panY + (ev.clientY - lastY) * ratioY));
+    lastX = ev.clientX;
+    lastY = ev.clientY;
+    draw();
+  });
+  const stopDrag = () => { dragging = false; canvas.style.cursor = 'grab'; };
+  canvas.addEventListener('pointerup', stopDrag);
+  canvas.addEventListener('pointercancel', stopDrag);
+
+  const closeEditor = () => overlay.remove();
+  overlay.querySelector('#wieCloseBtn').onclick = closeEditor;
+  overlay.querySelector('#wieCancelBtn').onclick = closeEditor;
+  overlay.onclick = (ev) => { if (ev.target === overlay) closeEditor(); };
+  overlay.querySelector('#wieApplyBtn').onclick = () => {
+    draw();
+    const outUrl = canvas.toDataURL('image/jpeg', quality);
+    closeEditor();
+    if (onApply) onApply(outUrl);
+  };
 }
 
 function levelRowHtml(level = '', count = 0) {
@@ -1300,12 +1537,12 @@ function renderEditingRoster() {
           <input type="text" placeholder="📞 เบอร์โทร (ไม่แสดงหน้าเว็บ)" value="${escapeHtml(r.phone || '')}" style="flex:1;min-width:130px;padding:5px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;font-size:12px;" onchange="editingRoster[${idx}].phone=this.value" />
           <input type="text" placeholder="✉️ E-Mail (ไม่แสดงหน้าเว็บ)" value="${escapeHtml(r.email || '')}" style="flex:1;min-width:140px;padding:5px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;font-size:12px;" onchange="editingRoster[${idx}].email=this.value" />
           ${r.photo_data ? `
-            <button type="button" class="btn btn-ghost btn-sm" style="background:#fff;border:1px solid var(--border);font-size:11.5px;padding:4px 10px;" onclick="openRosterPhotoAdjust(${idx}, 'main')">
+            <button type="button" class="btn btn-ghost btn-sm" style="background:#fff;border:1px solid var(--border);font-size:11.5px;padding:4px 10px;" onclick="editExistingRosterPhoto(${idx}, 'photo_data')">
               🎛️ จัดรูปปกติ
             </button>
           ` : ''}
           ${r.photo_alt_data ? `
-            <button type="button" class="btn btn-ghost btn-sm" style="background:#fff;border:1px solid var(--primary);color:var(--primary);font-size:11.5px;padding:4px 10px;" onclick="openRosterPhotoAdjust(${idx}, 'alt')">
+            <button type="button" class="btn btn-ghost btn-sm" style="background:#fff;border:1px solid var(--primary);color:var(--primary);font-size:11.5px;padding:4px 10px;" onclick="editExistingRosterPhoto(${idx}, 'photo_alt_data')">
               ✨ จัดรูปอีกท่า
             </button>
           ` : ''}
@@ -1463,25 +1700,56 @@ function addRosterRow() {
   renderEditingRoster();
 }
 
+function applyRosterEditedPhoto(idx, field, dataUrl) {
+  if (!editingRoster[idx]) return;
+  editingRoster[idx][field] = dataUrl;
+  if (field === 'photo_alt_data') {
+    editingRoster[idx].photo_alt_pos_x = 50;
+    editingRoster[idx].photo_alt_pos_y = 50;
+    editingRoster[idx].photo_alt_flip = false;
+    editingRoster[idx].photo_alt_zoom = 1;
+  } else {
+    editingRoster[idx].photo_pos_x = 50;
+    editingRoster[idx].photo_pos_y = 50;
+    editingRoster[idx].photo_flip = false;
+    editingRoster[idx].photo_zoom = 1;
+  }
+  renderEditingRoster();
+}
+
 function uploadRosterPhoto(e, idx, field = 'photo_data') {
   const file = e.target.files[0];
   if (!file) return;
+  const isAlt = field === 'photo_alt_data';
+  const size = isAlt ? 600 : 400;
   const reader = new FileReader();
   reader.onload = ev => {
-    const img = new Image();
-    img.onload = () => {
-      const maxW = field === 'photo_alt_data' ? 720 : 400;
-      const scale = img.width > maxW ? maxW / img.width : 1;
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width * scale;
-      canvas.height = img.height * scale;
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      editingRoster[idx][field] = canvas.toDataURL('image/jpeg', 0.85);
-      renderEditingRoster();
-    };
-    img.src = ev.target.result;
+    openWardImageEditor({
+      title: isAlt ? '✨ แก้ไขรูปบุคลากร (อีกท่า)' : '📷 แก้ไขรูปบุคลากร (รูปปกติ)',
+      src: ev.target.result,
+      targetW: size,
+      targetH: size,
+      quality: 0.86,
+      onApply: (dataUrl) => applyRosterEditedPhoto(idx, field, dataUrl)
+    });
   };
   reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function editExistingRosterPhoto(idx, field = 'photo_data') {
+  const r = editingRoster[idx];
+  if (!r || !r[field]) return;
+  const isAlt = field === 'photo_alt_data';
+  const size = isAlt ? 600 : 400;
+  openWardImageEditor({
+    title: isAlt ? '✨ แก้ไขรูปบุคลากร (อีกท่า)' : '📷 แก้ไขรูปบุคลากร (รูปปกติ)',
+    src: r[field],
+    targetW: size,
+    targetH: size,
+    quality: 0.86,
+    onApply: (dataUrl) => applyRosterEditedPhoto(idx, field, dataUrl)
+  });
 }
 
 async function saveWardProfile(e) {
@@ -1664,10 +1932,38 @@ function renderMultiImagePreview() {
   prev.classList.remove('hidden');
   prev.innerHTML = state.uploadedImages.map((src, i) => `
     <div class="thumb-item">
+      ${i === 0 ? `<span class="thumb-cover-tag">⭐ ปก</span>` : ''}
       <img src="${src}" />
-      <button type="button" class="thumb-del" onclick="state.uploadedImages.splice(${i},1); renderMultiImagePreview();">✕</button>
+      <button type="button" class="thumb-del" title="ลบรูปนี้" onclick="state.uploadedImages.splice(${i},1); renderMultiImagePreview();">✕</button>
+      <div class="thumb-actions">
+        ${i > 0 ? `<button type="button" onclick="setPostCoverImage(${i})" title="ตั้งรูปนี้เป็นหน้าปก">⭐ ปก</button>` : ''}
+        <button type="button" onclick="editPostImage(${i})" title="แก้ไขภาพ (ย่อ-ขยาย / เลื่อน / แสง / Flip)">🎨 แก้ไข</button>
+      </div>
     </div>
   `).join('');
+}
+
+function setPostCoverImage(idx) {
+  if (idx <= 0 || idx >= state.uploadedImages.length) return;
+  const [picked] = state.uploadedImages.splice(idx, 1);
+  state.uploadedImages.unshift(picked);
+  renderMultiImagePreview();
+}
+
+function editPostImage(idx) {
+  const src = state.uploadedImages[idx];
+  if (!src) return;
+  openWardImageEditor({
+    title: idx === 0 ? '🎨 แก้ไขภาพปกโพสต์' : `🎨 แก้ไขภาพประกอบที่ ${idx + 1}`,
+    src,
+    targetW: 1000,
+    targetH: 700,
+    quality: 0.85,
+    onApply: (dataUrl) => {
+      state.uploadedImages[idx] = dataUrl;
+      renderMultiImagePreview();
+    }
+  });
 }
 
 function editPost(id) {

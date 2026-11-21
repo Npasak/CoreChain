@@ -1728,6 +1728,10 @@ async function dismissReportedComment(ratingId) {
 }
 
 function openAddManagerModal() {
+  if (window.location.pathname.startsWith('/b/')) {
+    window.top.location.href = '/?open=users';
+    return;
+  }
   const modal = document.getElementById('addManagerModal');
   if (modal) modal.classList.remove('hidden');
   loadManagerDashboard();
@@ -4000,6 +4004,10 @@ document.addEventListener('DOMContentLoaded', initFloatingMenuState);
 let allManagedMembers = [];
 
 async function openMemberManagementModal() {
+  if (window.location.pathname.startsWith('/b/')) {
+    window.top.location.href = '/?open=users';
+    return;
+  }
   const modal = document.getElementById('memberManagementModal');
   if (modal) modal.classList.remove('hidden');
   await loadMembersList();
@@ -4945,7 +4953,9 @@ async function renderLessonSignatoryCheckboxes(containerId, checkboxClass, exist
   const box = document.getElementById(containerId);
   if (!box) return;
   await loadSignatoriesCache();
-  const savedOrder = parseSignatoryIDs(existingRaw);
+  const isSingle = checkboxClass !== 'ccSigCheck';
+  const rawOrder = parseSignatoryIDs(existingRaw);
+  const savedOrder = isSingle ? rawOrder.slice(0, 1) : rawOrder;
   const selectedIds = new Set(savedOrder);
 
   if (!allSignatoriesCache.length) {
@@ -4966,20 +4976,33 @@ async function renderLessonSignatoryCheckboxes(containerId, checkboxClass, exist
   box.innerHTML = ordered.map(s => `
     <div class="sig-drag-item" data-sig-id="${s.id}"
       style="display:flex; align-items:center; gap:0.45rem; padding:0.35rem 0.5rem; border-radius:6px; border:1px solid var(--border); background:var(--card);">
-      <input type="checkbox" class="${checkboxClass}" value="${s.id}" ${selectedIds.has(s.id) ? 'checked' : ''} onchange="updateSignatoryOrderBadges('${containerId}', '${checkboxClass}')" style="cursor:pointer;">
+      <input type="checkbox" class="${checkboxClass}" value="${s.id}" ${selectedIds.has(s.id) ? 'checked' : ''} onchange="handleSignatoryCheckChange(this, '${containerId}', '${checkboxClass}', ${isSingle})" style="cursor:pointer;">
       ${s.signature_url ? `<img src="${escapeHtml(s.signature_url)}" alt="sig" style="height:24px; max-width:68px; object-fit:contain; background:#fff; border-radius:4px; padding:1px;">` : ''}
       <div style="flex:1; line-height:1.3; min-width:0;">
         <div style="font-weight:700; color:var(--text);">${escapeHtml(s.full_name)}</div>
         <div style="font-size:0.75rem; color:var(--muted);">${escapeHtml(s.position)}</div>
       </div>
       <span class="sig-order-badge" style="font-size:0.7rem; font-weight:700; color:var(--primary); white-space:nowrap;"></span>
+      ${isSingle ? '' : `
       <div style="display:flex; flex-direction:column; gap:2px; flex-shrink:0;">
         <button type="button" class="btn btn-sm btn-wallet" onclick="moveSignatoryRow(this, -1, '${containerId}', '${checkboxClass}')" title="เลื่อนขึ้น" style="padding:0 5px; font-size:0.65rem; line-height:1.3;">▲</button>
         <button type="button" class="btn btn-sm btn-wallet" onclick="moveSignatoryRow(this, 1, '${containerId}', '${checkboxClass}')" title="เลื่อนลง" style="padding:0 5px; font-size:0.65rem; line-height:1.3;">▼</button>
-      </div>
+      </div>`}
     </div>
   `).join('');
 
+  updateSignatoryOrderBadges(containerId, checkboxClass);
+}
+
+function handleSignatoryCheckChange(el, containerId, checkboxClass, isSingle) {
+  if (isSingle && el.checked) {
+    const box = document.getElementById(containerId);
+    if (box) {
+      box.querySelectorAll(`.${checkboxClass}`).forEach(cb => {
+        if (cb !== el) cb.checked = false;
+      });
+    }
+  }
   updateSignatoryOrderBadges(containerId, checkboxClass);
 }
 
@@ -4998,6 +5021,7 @@ function moveSignatoryRow(btn, dir, containerId, checkboxClass) {
 function updateSignatoryOrderBadges(containerId, checkboxClass) {
   const box = document.getElementById(containerId);
   if (!box) return;
+  const isSingle = checkboxClass !== 'ccSigCheck';
   const checkedBoxes = Array.from(box.querySelectorAll(`.${checkboxClass}:checked`));
   const totalChecked = checkedBoxes.length;
   box.querySelectorAll('.sig-drag-item').forEach(row => {
@@ -5006,6 +5030,10 @@ function updateSignatoryOrderBadges(containerId, checkboxClass) {
     if (!badge || !cb) return;
     if (!cb.checked) {
       badge.textContent = '';
+      return;
+    }
+    if (isSingle) {
+      badge.textContent = '✅ ผู้ลงนาม';
       return;
     }
     const idx = checkedBoxes.indexOf(cb) + 1;
@@ -5059,6 +5087,9 @@ function collectSelectedSignatoryIDs(checkboxClass) {
   const checked = Array.from(document.querySelectorAll(`.${checkboxClass}:checked`))
     .map(el => Number(el.value))
     .filter(Boolean);
+  if (checkboxClass !== 'ccSigCheck') {
+    return JSON.stringify(checked.slice(0, 1));
+  }
   return JSON.stringify(checked);
 }
 

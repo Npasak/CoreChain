@@ -6,7 +6,7 @@
   <title>CoreChain HUB — One Core. Infinite Blocks.</title>
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <link rel="icon" type="image/svg+xml" href="/corechain-icon.svg" />
-  <link rel="stylesheet" href="/style.css?v=1.2.4-hub" />
+  <link rel="stylesheet" href="/style.css?v=1.2.5-minimal2" />
 </head>
 <body class="theme-sky">
   <header class="topbar">
@@ -147,38 +147,75 @@
     </div>
   </div>
 
-  <!-- Member Management Modal (Manager & therunrock) -->
-  <div id="usersModal" class="modal hidden">
-    <div class="modal-card" style="width:min(760px,95vw);max-height:88vh;overflow-y:auto;">
-      <div class="modal-head">
-        <h3>👥 จัดการสมาชิกและสิทธิ์การใช้งาน</h3>
-        <button class="icon-btn" onclick="toggleUsersModal(false)">✕</button>
+  <!-- Member Management Modal (Minimal UI like LearnChain) -->
+  <div id="usersModal" class="modal hidden" onclick="if(event.target===this)toggleUsersModal(false)">
+    <div class="modal-card modal-card-wide">
+      <div class="member-modal-hdr">
+        <div class="member-modal-hdr-left">
+          <span class="member-badge-pill">👥 จัดการสมาชิก</span>
+          <h3 style="margin:0;font-size:15.5px;">จัดการรายชื่อสมาชิก ปรับลดสิทธิ์ และลบผู้ใช้</h3>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button type="button" class="btn btn-primary btn-sm" onclick="toggleCreateUserDrawer()">➕ เพิ่มสมาชิก</button>
+          <button type="button" class="icon-btn" onclick="toggleUsersModal(false)" title="ปิด">✕</button>
+        </div>
       </div>
-      <form id="createUserForm" onsubmit="submitCreateUser(event)" style="background:var(--surface-2);padding:12px;border-radius:12px;border:1px solid var(--border);margin-bottom:14px;">
-        <div style="font-size:12.5px;font-weight:700;margin-bottom:8px;">➕ เพิ่มสมาชิกใหม่</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;">
-          <input type="text" id="newUname" required placeholder="ชื่อผู้ใช้ (username)" style="margin:0;" />
-          <input type="text" id="newDisplay" placeholder="ชื่อ-สกุล" style="margin:0;" />
-          <input type="password" id="newPass" required placeholder="รหัสผ่าน" style="margin:0;" />
-          <select id="newRole" style="padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text);">
-            <option value="user">สมาชิก (User)</option>
-            <option value="manager">ผู้จัดการ (Manager)</option>
-            <option value="admin">Admin</option>
+
+      <div class="member-modal-body">
+        <div id="usersStatusBanner" class="member-status-banner hidden"></div>
+
+        <!-- Collapsible Create User Drawer -->
+        <form id="createUserDrawer" class="member-create-drawer hidden" onsubmit="submitCreateUser(event)">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <strong style="font-size:13px;">➕ เพิ่มสมาชิกใหม่เข้าระบบกลาง</strong>
+            <button type="button" class="icon-btn" style="font-size:14px;" onclick="toggleCreateUserDrawer(false)">✕</button>
+          </div>
+          <div class="member-create-grid">
+            <input type="text" id="newUname" required placeholder="ชื่อผู้ใช้ (username) *" />
+            <input type="text" id="newDisplay" placeholder="ชื่อ-สกุล" />
+            <input type="email" id="newEmail" placeholder="อีเมล (ถ้ามี)" />
+            <input type="password" id="newPass" required placeholder="รหัสผ่าน *" />
+            <select id="newRole" class="form-input">
+              <option value="user">👤 สมาชิก (User)</option>
+              <option value="admin">👔 ผู้จัดการ (Admin)</option>
+            </select>
+            <select id="newWard" class="form-input">
+              <option value="ส่วนกลาง">🏛️ ส่วนกลาง</option>
+              <option value="หอสงฆ์">🏥 หอสงฆ์</option>
+              <option value="สว.11">🏥 สว.11</option>
+              <option value="สว.12">🏥 สว.12</option>
+              <option value="8A">🏥 8A</option>
+              <option value="8B">🏥 8B</option>
+              <option value="9A">🏥 9A</option>
+              <option value="9B">🏥 9B</option>
+              <option value="9C">🏥 9C</option>
+            </select>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:8px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="toggleCreateUserDrawer(false)">ยกเลิก</button>
+            <button type="submit" class="btn btn-primary btn-sm">💾 บันทึกสมาชิกใหม่</button>
+          </div>
+        </form>
+
+        <!-- Search & Filter Bar (like LearnChain) -->
+        <div class="member-toolbar">
+          <input type="search" id="userSearchInput" style="flex:1;min-width:200px;" placeholder="🔍 ค้นหาชื่อ, อีเมล หรือ username..." oninput="renderUsersList()" />
+          <select id="userWardFilter" class="form-input" style="min-width:135px;width:auto;" onchange="renderUsersList()">
+            <option value="">🏥 ทุกหน่วยงาน</option>
           </select>
-          <input type="text" id="newWard" placeholder="หอผู้ป่วย/แผนก" style="margin:0;" />
+          <select id="userRoleFilter" class="form-input" style="min-width:155px;width:auto;" onchange="renderUsersList()">
+            <option value="">🔑 ทุกสิทธิ์</option>
+            <option value="user">👤 สมาชิก</option>
+            <option value="admin">👔 ผู้จัดการ (Admin)</option>
+          </select>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
-          <span id="userFormMsg" class="hint-text" style="margin:0;"></span>
-          <button type="submit" class="btn btn-primary btn-sm">+ เพิ่มสมาชิก</button>
-        </div>
-      </form>
-      <div style="margin-bottom:10px;">
-        <input type="search" id="userSearchInput" placeholder="🔍 ค้นหาชื่อผู้ใช้ / ชื่อ-สกุล / แผนก..." oninput="renderUsersList()" style="margin:0;" />
+
+        <div id="usersCountSummary" style="font-size:12px;color:var(--muted);">กำลังโหลดรายชื่อสมาชิก...</div>
+        <div id="usersListBox" style="display:flex;flex-direction:column;gap:8px;">กำลังโหลด...</div>
       </div>
-      <div id="usersListBox" style="display:flex;flex-direction:column;gap:8px;">กำลังโหลด...</div>
     </div>
   </div>
 
-  <script src="/app.js?v=1.2.4-hub2"></script>
+  <script src="/app.js?v=1.2.5-minimal2"></script>
 </body>
 </html>

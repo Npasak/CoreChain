@@ -108,7 +108,7 @@ func RequirePoster() fiber.Handler {
 func RequireAdmin() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		u, ok := c.Locals("user").(*models.User)
-		if !ok || u == nil || (u.Role != "admin" && u.Role != "god") {
+		if !ok || u == nil || (u.Role != "admin" && u.Role != "manager" && u.Role != "god") {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"success": false,
 				"message": "สิทธิ์ไม่เพียงพอ (เฉพาะผู้ดูแลระบบเท่านั้น)",

@@ -187,7 +187,8 @@
             <div class="form-group">
               <label class="form-label">หน่วยงาน *:</label>
               <select id="regWard" class="form-input" required>
-                <option value="หอสงฆ์">🏥 หอสงฆ์</option>
+                <option value="ส่วนกลาง">🏛️ ส่วนกลาง</option>
+            <option value="หอสงฆ์">🏥 หอสงฆ์</option>
                 <option value="สว.11" selected>🏥 สว.11</option>
                 <option value="สว.12">🏥 สว.12</option>
                 <option value="8A">🏥 8A</option>
@@ -595,7 +596,8 @@
               <label for="managerWardFilter" style="font-size:0.85rem; font-weight:600; color:var(--text); white-space:nowrap;">🏥 หน่วยงาน:</label>
               <select id="managerWardFilter" class="role-switcher-select" style="padding:0.5rem 0.85rem; font-size:0.88rem; font-weight:600;" onchange="filterManagerLessons()">
                 <option value="">ทุกหน่วยงาน</option>
-                <option value="หอสงฆ์">🏥 หอสงฆ์</option>
+                <option value="ส่วนกลาง">🏛️ ส่วนกลาง</option>
+            <option value="หอสงฆ์">🏥 หอสงฆ์</option>
                 <option value="สว.11">🏥 สว.11</option>
                 <option value="สว.12">🏥 สว.12</option>
                 <option value="8A">🏥 8A</option>
@@ -756,7 +758,8 @@
           <div class="form-group">
             <label class="form-label">สังกัดหน่วยงาน *:</label>
             <select id="profileWardInput" class="form-input" required>
-              <option value="หอสงฆ์">🏥 หอสงฆ์</option>
+              <option value="ส่วนกลาง">🏛️ ส่วนกลาง</option>
+            <option value="หอสงฆ์">🏥 หอสงฆ์</option>
               <option value="สว.11">🏥 สว.11</option>
               <option value="สว.12">🏥 สว.12</option>
               <option value="8A">🏥 8A</option>
@@ -946,7 +949,7 @@
             </div>
           </div>
           <div class="form-group" style="margin-top:0.5rem;">
-            <label class="form-label">✍️ ผู้ลงนามในใบวุฒิบัตรของบทเรียนนี้:</label>
+            <label class="form-label">✍️ ผู้ลงนามในใบวุฒิบัตรของบทเรียนนี้ (เลือก 1 ท่าน สำหรับผู้เรียน):</label>
             <div id="editLessonSignatoriesBox" style="display:flex; flex-direction:column; gap:0.4rem; max-height:160px; overflow-y:auto; padding:0.55rem; border:1px solid var(--border); border-radius:var(--r); background:var(--bg); font-size:0.82rem;">
               <span style="color:var(--muted);">กำลังโหลดรายชื่อผู้ลงนาม...</span>
             </div>
@@ -1235,7 +1238,7 @@
 
           <!-- ผู้ลงนามในใบวุฒิบัตร -->
           <div class="creator-form-section">
-            <h4 class="creator-sec-title">✍️ 4. เลือกผู้ลงนามในใบวุฒิบัตร</h4>
+            <h4 class="creator-sec-title">✍️ 4. เลือกผู้ลงนามในใบวุฒิบัตร (เลือก 1 ท่าน สำหรับผู้เรียน)</h4>
             <div id="newLessonSignatoriesBox" style="display:flex; flex-direction:column; gap:0.4rem; max-height:170px; overflow-y:auto; padding:0.6rem; border:1px solid var(--border); border-radius:var(--r); background:var(--bg); font-size:0.82rem;">
               <span style="color:var(--muted);">กำลังโหลดรายชื่อผู้ลงนาม...</span>
             </div>
@@ -1519,6 +1522,7 @@
           <input type="text" id="memberSearchInput" class="form-input" style="flex:1; min-width:200px;" placeholder="🔍 ค้นหาชื่อ หรือ อีเมล..." oninput="renderMemberManagementList()">
           <select id="memberWardFilter" class="form-input" style="min-width:130px; width:auto;" onchange="renderMemberManagementList()">
             <option value="">🏥 ทุกหน่วยงาน</option>
+            <option value="ส่วนกลาง">🏛️ ส่วนกลาง</option>
             <option value="หอสงฆ์">🏥 หอสงฆ์</option>
             <option value="สว.11">🏥 สว.11</option>
             <option value="สว.12">🏥 สว.12</option>

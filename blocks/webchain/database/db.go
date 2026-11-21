@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"webchain/config"
@@ -154,7 +155,7 @@ func SeedInitialData(db *gorm.DB) {
 
 	var userCount int64
 	db.Model(&models.User{}).Where("is_hidden = ?", false).Count(&userCount)
-	if userCount == 0 {
+	if userCount == 0 && os.Getenv("CORECHAIN_BLOCK_ID") == "" {
 		defaultHash, _ := bcrypt.GenerateFromPassword([]byte("123456"), bcrypt.DefaultCost)
 		starterUsers := []models.User{
 			{

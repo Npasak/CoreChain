@@ -207,7 +207,15 @@ func main() {
 		if u == nil {
 			return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 		}
-		db.Where("id = ?", c.Params("id")).Delete(&Document{})
+		var doc Document
+		if err := db.Where("id = ?", c.Params("id")).First(&doc).Error; err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "ไม่พบเอกสาร"})
+		}
+		isAdmin := u.BlockRole == "admin" || u.BlockRole == "manager" || u.GlobalRole == "admin" || u.GlobalRole == "manager" || u.GlobalRole == "god"
+		if !isAdmin && doc.UploaderID != u.UserID {
+			return c.Status(403).JSON(fiber.Map{"error": "เฉพาะผู้จัดการหรือผู้อัปโหลดเท่านั้นที่ลบเอกสารนี้ได้"})
+		}
+		db.Delete(&doc)
 		return c.JSON(fiber.Map{"ok": true})
 	})
 

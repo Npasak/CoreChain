@@ -2,6 +2,7 @@ package database
 
 import (
 	"log"
+	"os"
 
 	"elearning-sbt/models"
 
@@ -88,6 +89,9 @@ func cleanupRetiredDemoLessons(db *gorm.DB) {
 
 // seedDemoData populates default accounts and course for instant out-of-the-box testing.
 func seedDemoData(db *gorm.DB) {
+	if os.Getenv("CORECHAIN_BLOCK_ID") != "" {
+		return
+	}
 	var userCount int64
 	db.Model(&models.User{}).Count(&userCount)
 	if userCount > 0 {

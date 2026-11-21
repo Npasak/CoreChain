@@ -72,6 +72,15 @@ func (s *Supervisor) BootAll() {
 }
 
 func (s *Supervisor) installPackagesFromDir() {
+	// Clean up any stale staging/old directories from interrupted hot-swaps
+	if blkEntries, err := os.ReadDir(s.cfg.BlocksDir); err == nil {
+		for _, be := range blkEntries {
+			if be.IsDir() && (strings.HasPrefix(be.Name(), "_staging_") || strings.HasPrefix(be.Name(), "_scan_tmp") || strings.HasSuffix(be.Name(), ".old")) {
+				_ = os.RemoveAll(filepath.Join(s.cfg.BlocksDir, be.Name()))
+			}
+		}
+	}
+
 	entries, err := os.ReadDir(s.cfg.PackagesDir)
 	if err != nil {
 		return
@@ -96,7 +105,9 @@ func (s *Supervisor) installPackagesFromDir() {
 		var rec models.InstalledBlock
 		err = s.db.Where("id = ?", manifest.ID).First(&rec).Error
 		targetDir := filepath.Join(s.cfg.BlocksDir, manifest.ID)
-		if err != nil || rec.PackageHash != hash || !dirExists(targetDir) {
+		_, mfErr := os.Stat(filepath.Join(targetDir, "manifest.json"))
+		_, exeErr := os.Stat(filepath.Join(targetDir, manifest.Entrypoint))
+		if err != nil || rec.PackageHash != hash || !dirExists(targetDir) || mfErr != nil || exeErr != nil {
 			_ = os.RemoveAll(targetDir)
 			if err := os.Rename(tmpDir, targetDir); err != nil {
 				log.Printf("[Supervisor] Failed to install %s: %v", manifest.ID, err)
@@ -195,6 +206,14 @@ func (s *Supervisor) startInstalledBlocks() {
 
 // StartBlock launches a block worker on a free loopback port with dedicated CPU threads.
 func (s *Supervisor) StartBlock(blockID string) error {
+	s.mu.RLock()
+	existing, exists := s.workers[blockID]
+	alreadyRunning := exists && existing.Status == "running" && existing.cmd != nil && existing.cmd.Process != nil
+	s.mu.RUnlock()
+	if alreadyRunning {
+		return nil
+	}
+
 	blockDir := filepath.Join(s.cfg.BlocksDir, blockID)
 	manifest, err := blocksdk.ReadManifest(blockDir)
 	if err != nil {
@@ -316,11 +335,20 @@ func (s *Supervisor) StopBlock(blockID string) {
 	}
 	st.Status = "stopped"
 	proc := st.cmd.Process
+	st.cmd = nil
+	st.PID = 0
+	st.Port = 0
 	s.mu.Unlock()
 
-	_ = proc.Signal(os.Interrupt)
-	time.Sleep(400 * time.Millisecond)
-	_ = proc.Kill()
+	if runtime.GOOS == "windows" {
+		tk := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(proc.Pid))
+		configureHiddenProcess(tk)
+		_ = tk.Run()
+	} else {
+		_ = proc.Signal(os.Interrupt)
+		time.Sleep(400 * time.Millisecond)
+		_ = proc.Kill()
+	}
 }
 
 // HotSwapBlock installs or updates a .Blz package with zero downtime for CoreChain and other blocks!
@@ -361,13 +389,24 @@ func (s *Supervisor) HotSwapBlock(blzPath string) (*blocksdk.Manifest, error) {
 	oldDir := targetDir + ".old"
 	_ = os.RemoveAll(oldDir)
 	if dirExists(targetDir) {
-		_ = os.Rename(targetDir, oldDir)
+		var renErr error
+		for i := 0; i < 6; i++ {
+			if renErr = os.Rename(targetDir, oldDir); renErr == nil {
+				break
+			}
+			time.Sleep(250 * time.Millisecond)
+		}
+		if renErr != nil {
+			_ = os.RemoveAll(stagingDir)
+			return nil, fmt.Errorf("cannot swap locked folder %s: %w", manifest.ID, renErr)
+		}
 	}
 	if err := os.Rename(stagingDir, targetDir); err != nil {
 		// Rollback directory
 		if dirExists(oldDir) {
 			_ = os.Rename(oldDir, targetDir)
 		}
+		_ = os.RemoveAll(stagingDir)
 		return nil, err
 	}
 

@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/klauspost/compress/zstd"
 )
 
 const PackageExtension = ".Blz"
@@ -76,6 +78,7 @@ func PackBlz(srcDir, outBlzPath string) (string, error) {
 	defer outFile.Close()
 
 	zw := zip.NewWriter(outFile)
+	zw.RegisterCompressor(zstd.ZipMethodWinZip, zstd.ZipCompressor(zstd.WithEncoderLevel(zstd.SpeedBestCompression)))
 	err = filepath.Walk(srcDir, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -99,7 +102,7 @@ func PackBlz(srcDir, outBlzPath string) (string, error) {
 			return err
 		}
 		hdr.Name = rel
-		hdr.Method = zip.Deflate
+		hdr.Method = zstd.ZipMethodWinZip
 
 		w, err := zw.CreateHeader(hdr)
 		if err != nil {
@@ -137,6 +140,7 @@ func UnpackBlz(blzPath, destDir string) (*Manifest, error) {
 		return nil, fmt.Errorf("open .Blz package: %w", err)
 	}
 	defer r.Close()
+	r.RegisterDecompressor(zstd.ZipMethodWinZip, zstd.ZipDecompressor())
 
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		return nil, err

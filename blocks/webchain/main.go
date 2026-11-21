@@ -81,12 +81,19 @@ func main() {
 	// Version & Health
 	api.Get("/version", versionHandler.GetVersion)
 
-	// Auth & Users
-	api.Post("/auth/login", authHandler.Login)
-	api.Post("/auth/register", authHandler.Register)
+	// Auth & Users (Centralized in CoreChain HUB)
+	centralizedMsg := func(c *fiber.Ctx) error {
+		return c.Status(fiber.StatusGone).JSON(fiber.Map{
+			"success": false,
+			"message": "ระบบสมาชิกและการเข้าสู่ระบบย้ายไปจัดการที่ CoreChain HUB แล้ว",
+			"hub_url": "/?open=users",
+		})
+	}
+	api.Post("/auth/login", centralizedMsg)
+	api.Post("/auth/register", centralizedMsg)
 	api.Get("/auth/me", authHandler.Me)
-	api.Get("/users", middleware.RequireAdmin(), authHandler.ListUsers)
-	api.Post("/users/:id/role", middleware.RequireAdmin(), authHandler.UpdateUserRole)
+	api.Get("/users", middleware.RequireAdmin(), centralizedMsg)
+	api.Post("/users/:id/role", middleware.RequireAdmin(), centralizedMsg)
 
 	// Posts & Stats
 	api.Get("/posts", postHandler.ListPosts)

@@ -3,6 +3,7 @@
 !CoreChain-win-arm.exe
 !CoreChain-win-x64.exe
 *.exe~
+*.zip
 _build_tmp/
 
 # Runtime isolated data, media, and backups
