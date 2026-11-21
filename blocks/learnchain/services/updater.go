@@ -2,6 +2,7 @@ package services
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -125,8 +126,13 @@ func (s *UpdaterService) checkCustomManifest(ctx context.Context, res *UpdateChe
 		return nil, fmt.Errorf("update manifest returned HTTP %d", resp.StatusCode)
 	}
 
+	rawBody, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read update manifest: %w", err)
+	}
+	rawBody = bytes.TrimPrefix(rawBody, []byte("\xef\xbb\xbf"))
 	var m customManifest
-	if err := json.NewDecoder(resp.Body).Decode(&m); err != nil {
+	if err := json.Unmarshal(rawBody, &m); err != nil {
 		return nil, fmt.Errorf("invalid update manifest JSON: %w", err)
 	}
 

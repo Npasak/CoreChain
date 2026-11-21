@@ -124,7 +124,8 @@ $manifestObj = @{
         }
     )
 }
-$manifestObj | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 "manifest.json"
+$manifestJson = $manifestObj | ConvertTo-Json -Depth 4
+[System.IO.File]::WriteAllText((Join-Path $PWD "manifest.json"), $manifestJson, [System.Text.UTF8Encoding]::new($false))
 
 Write-Host "`nBuild Complete! (CoreChain v$coreVer)" -ForegroundColor Green
 Get-ChildItem packages\*.Blz | Select-Object Name, Length

@@ -1,6 +1,7 @@
 package updater
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -168,8 +169,14 @@ func (u *BackgroundUpdater) fetchManifest() (*RemoteManifest, string, error) {
 			continue
 		}
 		var rm RemoteManifest
-		decErr := json.NewDecoder(resp.Body).Decode(&rm)
+		rawBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 		resp.Body.Close()
+		var decErr error
+		if readErr != nil {
+			decErr = readErr
+		} else {
+			decErr = json.Unmarshal(bytes.TrimPrefix(rawBody, []byte("\xef\xbb\xbf")), &rm)
+		}
 		if resp.StatusCode != 200 || decErr != nil {
 			if decErr != nil {
 				lastErr = decErr
