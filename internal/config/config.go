@@ -11,7 +11,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-const Version = "1.2.6"
+const Version = "1.2.7"
 
 type Config struct {
 	Port               string
@@ -64,7 +64,7 @@ func Load() *Config {
 		LegacyLearnChainDB: getEnv("LEGACY_LEARNCHAIN_DB", filepath.Join("..", "DApps", "elearning.db")),
 		AutoUpdateEnabled:  getEnvBool("AUTO_UPDATE_ENABLED", true),
 		AutoUpdateMin:      intervalMin,
-		UpdateManifestURL:  getEnv("UPDATE_MANIFEST_URL", "https://raw.githubusercontent.com/Npasak/CoreChain/main/manifest.json"),
+		UpdateManifestURL:  getEnv("UPDATE_MANIFEST_URL", "https://github.com/Npasak/CoreChain/releases/latest/download/manifest.json"),
 		AutoTunnel:         getEnvBool("AUTO_TUNNEL", true),
 		AuthSecret:         secret,
 		AutoOpenBrowser:    getEnvBool("AUTO_OPEN_BROWSER", true),
