@@ -2,30 +2,30 @@
     "blocks":  [
                    {
                        "download_url":  "https://github.com/Npasak/CoreChain/raw/main/packages/webchain.Blz",
-                       "sha256":  "a94f6f0e60994b181e4ede23cd0c8ae5deda8a850e4f9b57db489f996f0e220d",
+                       "sha256":  "120c4cb25f6a78d4b189cdb10a8406a38ef1d33c7ef2ff58871aa961ea778609",
                        "id":  "webchain",
                        "min_core_version":  "1.2.0",
                        "version":  "1.1.0"
                    },
                    {
                        "download_url":  "https://github.com/Npasak/CoreChain/raw/main/packages/learnchain.Blz",
-                       "sha256":  "43dd611a366726a90b69fdccf9530d0be9224faab9626cbb95afabc4881b171d",
+                       "sha256":  "bf9118a40545f4534ce128c0fb934e044b0d3f91af63917b51f93b2274b5a533",
                        "id":  "learnchain",
                        "min_core_version":  "1.2.0",
                        "version":  "1.3.22"
                    },
                    {
                        "download_url":  "https://github.com/Npasak/CoreChain/raw/main/packages/docchain.Blz",
-                       "sha256":  "c59c918c37b509896eb5e1550489f479c8647c5a25d47ca4798b15a2907c1a75",
+                       "sha256":  "3310fbec332336be51ee60df3db4191bfa01a1ff2570f73a3d28837c16b08a80",
                        "id":  "docchain",
                        "min_core_version":  "1.2.0",
                        "version":  "1.0.0"
                    }
                ],
-    "core_arm_sha256":  "2eeb79bef71ac5024279c77a313806945fb5948e84c6245c366dd1ef3217d8ec",
-    "published_at":  "2026-11-21T18:26:58Z",
+    "core_arm_sha256":  "b4a9b141f6f9eec8e9ea4f41fca60aa29be2938a7b4b22ee80a6595807e694be",
+    "published_at":  "2026-11-21T18:36:06Z",
     "core_version":  "1.2.6",
     "core_x64_url":  "https://github.com/Npasak/CoreChain/raw/main/CoreChain-win-x64.exe",
-    "core_x64_sha256":  "446ef4617adce03033cff6cb7d5dd7cfb8c0e053cf74389f29f65f79d30cc511",
+    "core_x64_sha256":  "2aef11e18fb9180983441f6c173252399f2c76c06788098b463415fac618ab7b",
     "core_arm_url":  "https://github.com/Npasak/CoreChain/raw/main/CoreChain-win-arm.exe"
 }

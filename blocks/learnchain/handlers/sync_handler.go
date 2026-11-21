@@ -29,7 +29,7 @@ import (
 )
 
 // DefaultGASSignalingURL is the built-in lightweight signaling hub for peer/IP discovery and fallback.
-const DefaultGASSignalingURL = ""
+var DefaultGASSignalingURL = ""
 
 // isPrivateOrLocalHost returns true for loopback and private/link-local LAN IPs so corporate HTTP proxies are bypassed for LAN sync.
 func isPrivateOrLocalHost(host string) bool {

@@ -45,7 +45,15 @@ $learnStage = "_build_tmp\learnchain"
 New-Item -ItemType Directory -Force -Path $learnStage | Out-Null
 Copy-Item -Force "blocks\learnchain\manifest.json" "$learnStage\manifest.json"
 $BuildDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+$learnGasUrl = $env:LEARNCHAIN_GAS_URL
+if (-not $learnGasUrl -and (Test-Path ".env")) {
+    $gasLine = Get-Content ".env" | Where-Object { $_ -match "^LEARNCHAIN_GAS_URL=" } | Select-Object -First 1
+    if ($gasLine) { $learnGasUrl = ($gasLine -split "=", 2)[1].Trim().Trim('"').Trim("'") }
+}
 $learnLdFlags = "-s -w -X elearning-sbt/version.Version=v1.3.22 -X elearning-sbt/version.Commit=corechain -X elearning-sbt/version.BuildDate=$BuildDate"
+if ($learnGasUrl) {
+    $learnLdFlags += " -X elearning-sbt/handlers.DefaultGASSignalingURL=$learnGasUrl"
+}
 Push-Location blocks\learnchain
 go build -ldflags="$learnLdFlags" -o "..\..\$learnStage\block.exe" .
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
